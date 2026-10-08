@@ -21,9 +21,10 @@
    - `ADMIN_KEY` 관리자 비밀번호 (관리자 페이지 로그인과 백업 암호에 씁니다. 바꾸면 이전 백업을 못 읽습니다)
    - `GH_TOKEN` 2번에서 만든 토큰
    - `GH_REPO` `깃허브아이디/ashen-abyss`
-4. **서버 깨우기** — 배포가 끝나면 나오는 주소(예: `https://ashen-abyss-xxxx.onrender.com`)를
-   GitHub 저장소 → Settings → Secrets and variables → Actions → Variables 탭 → New repository variable에
-   이름 `SERVER_URL`로 넣습니다. Actions 탭에서 `서버 깨우기`를 한 번 Run workflow 하면 그 뒤로 10분마다 서버를 깨웁니다.
+4. **서버 깨우기** — `.github/workflows/keepalive.yml`이 10분마다 `https://ashen-abyss.onrender.com/ping`을 부릅니다.
+   주소가 바뀌면 저장소 변수 `SERVER_URL`(Settings → Secrets and variables → Actions → Variables)로 바꿀 수 있습니다.
+
+지금 주소: https://ashen-abyss.onrender.com (게임) · /admin (관리자) · /dex (도감)
 
 ## 알아 둘 것
 

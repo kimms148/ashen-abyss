@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: 서버에 신호 보내기
         env:
-          URL: ${{ vars.SERVER_URL }}
+          URL: ${{ vars.SERVER_URL || 'https://ashen-abyss.onrender.com' }}
         run: |
           if [ -z "$URL" ]; then echo "저장소 변수 SERVER_URL 이 아직 없어요"; exit 0; fi
           curl -fsS --max-time 90 "$URL/ping" || (sleep 20 && curl -fsS --max-time 90 "$URL/ping")
