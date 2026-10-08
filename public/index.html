@@ -269,7 +269,7 @@ body.incine #party,body.incine #log,body.incine #skrow,body.incine #bar9,body.in
         <button id="bGolem" type="button">골렘</button>
         <button id="bBag" type="button">가방</button>
         <button id="bCol" type="button">도감</button>
-        <button id="bSnd" type="button">소리 켬</button><button id="bSave" type="button">저장</button><button id="bKeys" type="button" class="kset">키 설정</button><div id="party" hidden></div>
+        <button id="bSnd" type="button">소리 켬</button><button id="bMail" type="button" hidden>우편함</button><button id="bSave" type="button">저장</button><button id="bKeys" type="button" class="kset">키 설정</button><div id="party" hidden></div>
       </span>
     </div>
   </header>
@@ -5888,7 +5888,8 @@ awback(){openEnhance();},awset(a){if(!S.inForge)return;const [sl,n]=a.split(':')
   savenow(){save();log('모험 기록을 남겼다.');closePanel();},
   enter(f){closePanel();loadFloor(+f,null,'abyss');},
   revive(){const p=S.p;p.hp=p.maxhp;closePanel();const h=innTown();loadTown(h,...TOWNS[h].inn);log('여관 침대에서 눈을 떴다.');},
-  new(){Object.assign(S,{p:newPlayer(),stage:0,flags:{hv2:1},log:[]});renderLog();closePanel();loadTown('castle',9,5);say(PROLOGUE,()=>log('옥좌 앞의 알드릭 왕에게 말을 걸자.'));},
+  new(){openNamePanel(nm=>ACT.new0(nm));},
+  new0(nm){Object.assign(S,{p:newPlayer(),stage:0,flags:{hv2:1},log:[]});renderLog();closePanel();S.p.pname=nm||'';loadTown('castle',9,5);save();say(PROLOGUE,()=>log('옥좌 앞의 알드릭 왕에게 말을 걸자.'));},
   cont(){const s=loadSave();if(!s)return;S.ending=null;applySnap(s);try{gateMigrate();tokMigrate();}catch(e){}if(S.flags.warPending&&!S.flags.badEnd)setTimeout(()=>startWar(false),900);{const f=S.flags;if(!f.finfix){f.finfix=1;const got=[],cls=CLS_OF();for(const k in f){if(!/^fk_fin_/.test(k))continue;const T=k.slice(3),BG=BOSS_GEAR[T];if(!BG)continue;
       const w=BG.w.find(x=>CLASS_W(GEAR[x])===cls)||BG.w[0],a=cls==='alchemist'?(BG.a.find(x=>/^br_/.test(x))||BG.a[0]):(BG.a.find(x=>/^ba_/.test(x))||BG.a[0]);
       for(const g of [w,a]){if(!GEAR[g]||finOwned(g))continue;colGot(g,true);f.fgot=f.fgot||{};f.fgot[g]=1;if(!addGear(g,{e:0,aw:0})){const v=vault();if(vPut(v.items,v.size,{k:g,n:1,e:0,aw:0})>0)v.items.push({k:g,n:1,e:0,aw:0});}got.push(GEAR[g].name);}}
@@ -6392,6 +6393,32 @@ const CMD_LIST=[['기본',[['명령어','쓸 수 있는 명령어 목록 보기'
  ['최후의 전투',[['최후전투','인트로부터 최후의 전투 (대전쟁)'],['wave1','1웨이브부터 바로 (웨이브1)'],['wave2','2웨이브부터 바로 (웨이브2)']]]];
 function openCmdList(){const rows=CMD_LIST.map(([g,L])=>`<h3 style="margin:14px 0 6px;color:var(--gold,#d9ae5c);font-size:14px">${g}</h3>`+L.map(([c,d])=>`<div class="item" style="padding:6px 10px"><div><b style="font-family:monospace">${c}</b><small>${d}</small></div></div>`).join('')).join('');
   panel(`<h2>명령어</h2><p class="sub">${document.body.classList.contains('desk')?'Ctrl+Enter':'프로필 버튼 세 번'}으로 명령어 창을 열어요 · 미리보기는 진행도에 남지 않아요</p>${rows}<button data-act="close">닫기 (F)</button>`);}
+/* ---------- 처음 시작할 때 이름 ---------- */
+function openNamePanel(cb){const done=()=>{const v=($('nameIn').value||'').trim().replace(/\s+/g,' ').slice(0,12);if(!v){$('nameIn').focus();toast('이름을 적어 주세요','',false);return;}
+    if(cb){closePanel();cb(v);}else{S.p.pname=v;save();try{repSync(true);}catch(e){}closePanel();toast('이름을 정했어요',v,true);}};
+  panel(`<h2>모험가 이름</h2><div class="btns" style="display:flex;gap:6px"><input id="nameIn" maxlength="12" autocomplete="off" spellcheck="false" style="flex:1;min-width:0;background:#1c1826;color:#f0e6d4;border:1px solid #3a3446;border-radius:4px;padding:10px;font:16px inherit"><button class="primary" id="nameGo" type="button">${cb?'시작':'확인'}</button></div>${cb?'<button data-act="namecancel">돌아가기</button>':''}`,false);
+  const i=$('nameIn');i.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();done();}});$('nameGo').onclick=done;setTimeout(()=>i.focus(),50);}
+/* ---------- 우편함 · 공지 · 관리자에게 메시지 (서버로 연 게임) ---------- */
+const MAIL={notices:[],list:[],sent:[],blocked:false,t:0};
+const mailSeen=()=>S.p.mailSeen||(S.p.mailSeen=[]);
+function mailUnread(){const seen=new Set(mailSeen());return [...MAIL.notices,...MAIL.list].filter(m=>!seen.has(m.id)).length+MAIL.list.filter(m=>m.g&&!m.claimed&&seen.has(m.id)).length;}
+function mailBadge(){const b=$('bMail');if(!b)return;b.hidden=!SRV.on;const n=SRV.on&&S.p?mailUnread():0;b.textContent=n?`우편함 ${n}`:'우편함';b.style.color=n?'#ffd36b':'';}
+async function mailPull(){if(!SRV.on||S.mode==='title'||!S.p)return;try{const j=await srvPost('/api/mail',{pid:myPid(),psec:myPsec()});if(!j||j.error)return;
+  const prev=new Set([...MAIL.notices,...MAIL.list].map(m=>m.id)),first=!MAIL.t,seen=new Set(mailSeen());
+  MAIL.notices=j.notices||[];MAIL.list=j.mail||[];MAIL.sent=j.sent||[];MAIL.blocked=!!j.blocked;MAIL.t=Date.now();
+  const fresh=[...MAIL.notices,...MAIL.list].filter(m=>!seen.has(m.id)&&(first||!prev.has(m.id)));
+  if(fresh.length&&S.mode!=='cine'){const n=fresh.filter(m=>m.notice).pop();if(n)toast('공지',n.text.slice(0,60),true);else toast('우편이 도착했어요',`${fresh.length}통`,true);}
+  mailBadge();if(S.mode==='panel'&&S.panelKey==='우편함')openMail(true);}catch(e){}}
+function openMail(keep){const seenArr=mailSeen(),seen=new Set(seenArr),A=[...MAIL.notices.map(m=>({...m,notice:1})),...MAIL.list].sort((a,b)=>b.t-a.t);
+  const row=m=>{const isNew=!seen.has(m.id),g=m.g;return `<div class="item" style="display:block;padding:10px 12px${isNew?';border-color:#d9ae5c':''}"><div style="display:flex;justify-content:space-between;gap:8px"><b style="color:${m.notice?'#ffd36b':'#efe6d4'}">${m.notice?'공지':'관리자'}${isNew?' <span style="color:#ff6a5a;font-size:11px">새 우편</span>':''}</b><small>${fmtAgo(m.t)}</small></div>
+    ${m.text?`<div style="white-space:pre-wrap;margin-top:4px">${esc(m.text)}</div>`:''}${g?`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px"><small>첨부 · ${esc(m.what||mailGiftName(g))}</small>${m.claimed?'<small style="color:#8fd18f">받음</small>':`<button class="primary" data-act="mailclaim" data-arg="${esc(m.id)}">받기</button>`}</div>`:''}</div>`;};
+  panel(`<h2>우편함</h2>${A.length?A.map(row).join(''):'<p class="sub">받은 우편이 없어요.</p>'}
+    <h2 style="font-size:16px;margin-top:14px">관리자에게 보내기</h2>${MAIL.blocked?'<p class="sub">관리자에게 메시지를 보낼 수 없어요.</p>':`<textarea id="mailOut" maxlength="300" style="width:100%;height:70px;background:#120e18;color:#efe6d4;border:1px solid #3a3040;border-radius:4px;padding:8px;font:14px inherit;box-sizing:border-box"></textarea><div class="btns"><button class="primary" data-act="mailsend">보내기</button></div>`}
+    ${MAIL.sent.length?`<h2 style="font-size:14px;margin-top:10px">보낸 메시지</h2>${MAIL.sent.slice().reverse().map(m=>`<div class="item" style="display:block;padding:8px 12px"><small>${fmtAgo(m.t)}</small><div style="white-space:pre-wrap">${esc(m.text)}</div></div>`).join('')}`:''}
+    <button data-act="close">닫기 (F)</button>`);
+  const ta=$('mailOut');if(ta)ta.addEventListener('keydown',e=>e.stopPropagation());
+  for(const m of A)if(!seen.has(m.id))seenArr.push(m.id);if(seenArr.length>400)S.p.mailSeen=seenArr.slice(-400);mailBadge();save();}
+const mailGiftName=g=>g.gold?`${Number(g.gold).toLocaleString()}G`:`${GEAR[g.k]?GEAR[g.k].name:(itemOf(g.k)||{}).name||g.k}${g.e?' +'+g.e:''}${(g.n||1)>1?' ×'+g.n:''}`;
 /* ---------- 참여자 진행 보고 · 관리자 ---------- */
 const NET={db:null,user:null,uid:null,owner:false,list:{},giftUn:null,listUn:null,last:'',lastT:0,timer:null};
 const b64e=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -6419,9 +6446,9 @@ function codeRead(txt,pre){txt=(txt||'').trim().replace(/\s/g,'');const m=txt.ma
 const SRV={on:false,timer:null,last:'',lastT:0,ok:0,asked:0};
 function myPsec(){const p=S.p;if(!p.psec)p.psec=(Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,20);return p.psec;}
 const srvPost=(u,o)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),cache:'no-store'}).then(r=>r.json());
-(async()=>{if(!/^https?:$/.test(location.protocol)||/claude\.ai|claudeusercontent/.test(location.host))return;try{const r=await fetch('/api/ping',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.ok)return;SRV.on=true;setInterval(srvTick,30000);setTimeout(srvTick,4000);}catch(e){}})();
+(async()=>{if(!/^https?:$/.test(location.protocol)||/claude\.ai|claudeusercontent/.test(location.host))return;try{const r=await fetch('/api/ping',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.ok)return;SRV.on=true;mailBadge();$('bMail').onclick=()=>{if(S.mode==='play'){mailPull();openMail();}};setInterval(srvTick,30000);setTimeout(srvTick,4000);}catch(e){}})();
 async function srvTick(){if(!SRV.on||S.mode==='title'||!S.p)return;
-  if(!S.p.pname&&!SRV.asked&&S.mode==='play'){SRV.asked=1;openReport();toast('이름을 정해 주세요','관리자에게 보일 이름이에요',true);}
+  mailPull();
   try{const j=await srvPost('/api/gifts',{pid:myPid(),psec:myPsec()});for(const g of (j.gifts||[])){const used=(S.p.giftsUsed||[]).includes(g.gid);if(used||giftGive(g,true)){save();await srvPost('/api/claim',{pid:myPid(),psec:myPsec(),gid:g.gid});}}}catch(e){}}
 function srvSync(force){if(!SRV.on||S.mode==='title')return;const now=Date.now();clearTimeout(SRV.timer);const wait=force?0:Math.max(0,20000-(now-SRV.lastT));
   SRV.timer=setTimeout(async()=>{if(S.mode==='title')return;const o=reportObj(true),key=JSON.stringify({...o,t:0,playMs:0,save:{...o.save,p:{...o.save.p,playMs:0}}});if(key===SRV.last&&!force)return;
@@ -6486,9 +6513,15 @@ function openReport(){const p=S.p,code=repCode(reportObj(true));
 function fileSaveTxt(name,data){(async()=>{if(window.claude&&window.claude.use){let dl=null;try{dl=await window.claude.use('downloads');}catch(e){}
     if(dl){try{await dl.save({filename:name,data});toast('파일을 받았어요',name,false);}catch(e){if(e&&e.code!=='declined')toast('파일 저장 실패','',true);}return;}}
   try{const bl=new Blob([data],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();}catch(e){toast('파일 저장 실패','',true);}})();}
+{const c0=ACT.cont;ACT.cont=function(){c0.apply(ACT,arguments);if(S.mode!=='title'&&S.p&&!S.p.pname)setTimeout(()=>{if(S.mode==='play'&&!S.p.pname)openNamePanel();},900);};}
 Object.assign(ACT,{
   cpy(id){const t=$(id);if(!t)return;t.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(t.value).then(()=>toast('복사했어요','',false)).catch(()=>{});else toast(ok?'복사했어요':'직접 길게 눌러 복사해 주세요','',false);},
   repname(){const v=($('repName').value||'').trim().slice(0,12);if(!v)return;S.p.pname=v;save();repSync(true);openReport();toast('이름을 정했어요',v,false);},
+  namecancel(){closePanel();title();},
+  async mailclaim(id){const m=MAIL.list.find(x=>x.id===id);if(!m||!m.g||m.claimed)return;const g=m.g;
+    if(!g.gold){const cnt=g.n||1;if(invSpace(g.k)<cnt){toast('가방이 꽉 찼어요','가방을 비우고 다시 받아 주세요',true);return;}}
+    try{const j=await srvPost('/api/mail/claim',{pid:myPid(),psec:myPsec(),id});if(!j.gift){toast('받을 수 없어요',j.error||'',true);mailPull();return;}m.claimed=Date.now();giftGive(j.gift,true);save();openMail();}catch(e){toast('서버에 연결하지 못했어요','',true);}},
+  async mailsend(){const t=$('mailOut');if(!t)return;const v=t.value.trim();if(!v)return;try{const j=await srvPost('/api/mail/send',{pid:myPid(),psec:myPsec(),text:v});if(j.ok){t.value='';toast('관리자에게 보냈어요','',false);mailPull();}else toast('보내지 못했어요',j.error||'',true);}catch(e){toast('서버에 연결하지 못했어요','',true);}},
   async codein(){const el=$('codeIn');if(!el)return;const v=el.value;el.value='';await giftRedeem(v);},
   openrep(){openReport();},
   admadd(){const o=codeRead($('admIn').value,'R1');if(!o||!o.pid){toast('보고 코드가 올바르지 않아요','',true);return;}const L=admLocal();if(L[o.pid]&&(L[o.pid].t||0)>(o.t||0)){toast('이미 더 최근 보고가 있어요',o.name,true);return;}L[o.pid]=o;admSave(L);toast('등록했어요',`${o.name} · Lv ${o.lv}`,true);openAdmin();},

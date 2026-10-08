@@ -6,9 +6,9 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const GH_TOKEN = process.env.GH_TOKEN || '', GH_REPO = process.env.GH_REPO || '', GH_BRANCH = process.env.GH_BRANCH || 'data';
 const PUB = path.join(__dirname, 'public'), DATA_DIR = path.join(__dirname, 'data'), DATA_FILE = path.join(DATA_DIR, 'data.json');
-let DB = { players: {}, gifts: {}, codes: {} }, dirty = false, ghSha = null;
+let DB = { players: {}, gifts: {}, codes: {}, notices: [], mail: {}, inbox: [], blocked: {} }, dirty = false, ghSha = null;
 
-function loadLocal() { try { DB = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); DB.players ||= {}; DB.gifts ||= {}; DB.codes ||= {}; } catch (e) {} }
+function loadLocal() { try { DB = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); DB.players ||= {}; DB.gifts ||= {}; DB.codes ||= {}; DB.notices ||= []; DB.mail ||= {}; DB.inbox ||= []; DB.blocked ||= {}; } catch (e) {} }
 function saveLocal() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(DATA_FILE, JSON.stringify(DB)); } catch (e) { console.error('save', e.message); } }
 
 /* ---------- GitHub 백업 (공개 저장소여도 남이 못 읽게 ADMIN_KEY로 암호화) ---------- */
@@ -30,7 +30,7 @@ async function ghLoad() {
     const j = await r.json(); ghSha = j.sha;
     let txt = Buffer.from(j.content || '', 'base64').toString('utf8');
     if (!txt && j.download_url) txt = await (await fetch(j.download_url, { headers: { Authorization: 'Bearer ' + GH_TOKEN } })).text();
-    const d = JSON.parse(dec(txt)); DB = { players: d.players || {}, gifts: d.gifts || {}, codes: d.codes || {} }; saveLocal();
+    const d = JSON.parse(dec(txt)); DB = { players: d.players || {}, gifts: d.gifts || {}, codes: d.codes || {}, notices: d.notices || [], mail: d.mail || {}, inbox: d.inbox || [], blocked: d.blocked || {} }; saveLocal();
     console.log('GitHub 백업에서 불러옴:', Object.keys(DB.players).length, '명');
   } catch (e) { console.error('ghLoad', e.message); }
 }
@@ -62,6 +62,9 @@ const fmtCode = c => c.replace(/(.{4})(?=.)/g, '$1-');
 const FAILS = new Map();
 function tooMany(k, lim) { const f = FAILS.get(k); if (!f) return false; if (Date.now() - f.t > 600000) { FAILS.delete(k); return false; } return f.n >= lim; }
 function fail(ip) { const f = FAILS.get(ip); if (!f || Date.now() - f.t > 600000) FAILS.set(ip, { n: 1, t: Date.now() }); else f.n++; }
+const rid = () => Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
+const clean = (t, n) => String(t || '').replace(/[\u0000-\u0009\u000b-\u001f]/g, '').trim().slice(0, n);
+const SENT = new Map();
 function playerOk(pid, psec) { const p = DB.players[pid]; return p && safeEq(p.psec, psec); }
 
 const server = http.createServer(async (req, res) => {
@@ -97,6 +100,26 @@ const server = http.createServer(async (req, res) => {
       if (c.used) return send(res, 200, { error: '이미 쓴 코드예요' });
       c.used = Date.now(); changed(); return send(res, 200, { gift: c.g });
     }
+    /* 참여자: 우편함 (공지 · 관리자 우편 · 첨부 받기 · 관리자에게 보내기) */
+    if (P === '/api/mail' && req.method === 'POST') {
+      const b = await body(req), ok = playerOk(b.pid, b.psec);
+      return send(res, 200, { notices: DB.notices.slice(-30), mail: ok ? (DB.mail[b.pid] || []).slice(-60) : [], sent: ok ? DB.inbox.filter(m => m.pid === b.pid).slice(-10).map(m => ({ id: m.id, t: m.t, text: m.text })) : [], blocked: ok ? !!DB.blocked[b.pid] : false });
+    }
+    if (P === '/api/mail/claim' && req.method === 'POST') {
+      const b = await body(req); if (!playerOk(b.pid, b.psec)) return send(res, 403, { error: '먼저 게임을 저장해 주세요' });
+      const m = (DB.mail[b.pid] || []).find(x => x.id === b.id); if (!m || !m.g) return send(res, 200, { error: '받을 것이 없어요' });
+      if (m.claimed) return send(res, 200, { error: '이미 받았어요' });
+      m.claimed = Date.now(); changed(); return send(res, 200, { gift: m.g });
+    }
+    if (P === '/api/mail/send' && req.method === 'POST') {
+      const b = await body(req); if (!playerOk(b.pid, b.psec)) return send(res, 403, { error: '먼저 게임을 저장해 주세요' });
+      if (DB.blocked[b.pid]) return send(res, 200, { error: '관리자에게 메시지를 보낼 수 없어요' });
+      const text = clean(b.text, 300); if (!text) return send(res, 200, { error: '내용을 적어 주세요' });
+      const last = SENT.get(b.pid) || 0; if (Date.now() - last < 10000) return send(res, 200, { error: '잠시 뒤 다시 보내 주세요' });
+      SENT.set(b.pid, Date.now());
+      DB.inbox.push({ id: rid(), t: Date.now(), pid: b.pid, name: (DB.players[b.pid].report || {}).name || '', text, read: 0 }); if (DB.inbox.length > 1000) DB.inbox = DB.inbox.slice(-1000);
+      changed(); return send(res, 200, { ok: 1 });
+    }
     /* 관리자 */
     if (P.startsWith('/api/admin/')) {
       if (!isAdmin(req)) return send(res, 401, { error: 'admin' });
@@ -107,6 +130,19 @@ const server = http.createServer(async (req, res) => {
         const code = newCode(); DB.codes[code] = { g, to: g.to, what: String(b.what || '').slice(0, 80), t: Date.now(), used: 0 }; changed();
         return send(res, 200, { ok: 1, code: fmtCode(code) });
       }
+      if (P === '/api/admin/inbox') return send(res, 200, { inbox: DB.inbox.slice(-300), blocked: Object.keys(DB.blocked), notices: DB.notices.slice(-30) });
+      if (P === '/api/admin/inbox/read' && req.method === 'POST') { const b = await body(req), ids = new Set(b.ids || []); for (const m of DB.inbox) if (b.all || ids.has(m.id)) m.read = 1; changed(); return send(res, 200, { ok: 1 }); }
+      if (P === '/api/admin/notice' && req.method === 'POST') { const b = await body(req), text = clean(b.text, 500); if (!text) return send(res, 400, { error: 'empty' }); DB.notices.push({ id: rid(), t: Date.now(), text, notice: 1 }); if (DB.notices.length > 50) DB.notices = DB.notices.slice(-50); changed(); return send(res, 200, { ok: 1 }); }
+      if (P === '/api/admin/notice/delete' && req.method === 'POST') { const b = await body(req); DB.notices = DB.notices.filter(n => n.id !== b.id); changed(); return send(res, 200, { ok: 1 }); }
+      if (P === '/api/admin/mail' && req.method === 'POST') {
+        const b = await body(req), text = clean(b.text, 500), g = b.gift && typeof b.gift === 'object' ? b.gift : null;
+        if (!text && !g) return send(res, 400, { error: 'empty' });
+        const to = b.to === 'all' ? Object.keys(DB.players) : (DB.players[b.to] ? [b.to] : []);
+        if (!to.length) return send(res, 400, { error: 'no player' });
+        for (const pid of to) { const box = (DB.mail[pid] ||= []); box.push({ id: rid(), t: Date.now(), text, what: clean(b.what, 80), g: g ? { ...g, gid: rid(), to: pid } : null, claimed: 0 }); if (box.length > 100) DB.mail[pid] = box.slice(-100); }
+        changed(); return send(res, 200, { ok: 1, n: to.length });
+      }
+      if (P === '/api/admin/block' && req.method === 'POST') { const b = await body(req); if (b.on) DB.blocked[b.pid] = Date.now(); else delete DB.blocked[b.pid]; changed(); return send(res, 200, { ok: 1 }); }
       if (P === '/api/admin/delete' && req.method === 'POST') { const b = await body(req); delete DB.players[b.pid]; delete DB.gifts[b.pid]; changed(); return send(res, 200, { ok: 1 }); }
       return send(res, 404, { error: 'none' });
     }
