@@ -1,0 +1,10 @@
+{
+  "name": "ashen-abyss",
+  "version": "1.0.0",
+  "description": "잿빛 심연 — 참여자 진행 보고와 관리자 선물을 주고받는 게임 서버",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED",
+  "private": true
+}

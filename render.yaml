@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ashen-abyss
+    runtime: node
+    plan: free
+    buildCommand: echo "빌드할 것 없음"
+    startCommand: node server.js
+    healthCheckPath: /ping
+    envVars:
+      - key: ADMIN_KEY
+        sync: false
+      - key: GH_TOKEN
+        sync: false
+      - key: GH_REPO
+        sync: false
+      - key: GH_BRANCH
+        value: data
