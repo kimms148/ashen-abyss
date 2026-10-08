@@ -40,12 +40,12 @@ label{font-size:12px;color:var(--dim);display:block;margin-top:8px}
 @media(max-width:900px){.side{position:static}}
 </style></head><body>
 <div class="wrap">
-<header><div><h1>잿빛 심연 관리자</h1><p class="sub">참여자가 보낸 진행 보고 코드를 등록해 진행 상황을 보고, 선물 코드를 만들어요. 인터넷 없이 이 파일만으로 동작해요.</p></div><div class="meta" id="count"></div></header>
+<header><div><h1>잿빛 심연 관리자</h1></div><div class="meta" id="count"></div></header>
 <div class="grid">
 <main>
-  <div class="box" id="netBox" hidden style="margin-bottom:18px"><h2>서버 연결</h2><p class="sub">서버에서 연 관리자 페이지예요. Render에 정한 관리자 비밀번호(ADMIN_KEY)를 넣으면 참여자 진행 상황이 자동으로 들어오고, 선물도 자동으로 전달돼요.</p>
+  <div class="box" id="netBox" hidden style="margin-bottom:18px"><h2>서버 연결</h2>
     <div class="row"><input id="akey" type="password" placeholder="관리자 비밀번호"><button class="pri" id="bKey">연결</button></div><p class="sub" id="netMsg"></p></div>
-  <div class="box"><h2>보고 코드 등록</h2><p class="sub">참여자의 게임에서 저장 → 진행 보고 · 선물 받기에서 복사한 코드를 붙여 넣으세요. 여러 개를 한꺼번에 붙여 넣어도 돼요.</p>
+  <div class="box"><h2>보고 코드 등록</h2>
     <textarea id="inCode" placeholder="R1.으로 시작하는 보고 코드"></textarea>
     <div class="row"><button class="pri" id="bAdd">등록</button><button id="bFile">파일에서 불러오기</button><input type="file" id="fIn" accept=".txt,.json,text/plain" multiple hidden></div></div>
   <div class="tools"><input id="q" placeholder="이름 검색"><select id="sort"><option value="lv">레벨 높은 순</option><option value="t">최근 보고 순</option><option value="name">이름 순</option><option value="fin">최종 보스 많은 순</option></select></div>
@@ -60,9 +60,9 @@ label{font-size:12px;color:var(--dim);display:block;margin-top:8px}
     <div id="gGoldW" hidden><label for="gGold">골드</label><input id="gGold" type="number" min="1" value="10000"></div>
     <div class="row"><button class="pri" id="bGift">선물 코드 만들기</button></div>
     <div id="gOutW" hidden><label for="gOut">선물 코드 · 받는 사람에게 보내 주세요</label><textarea id="gOut" readonly></textarea><div class="row"><button id="bGCopy">코드 복사</button></div></div>
-    <p class="sub">받는 사람은 게임 명령어 창에 <b>선물 코드</b>를 입력하거나, 저장 → 진행 보고 · 선물 받기에 붙여 넣으면 받아요. 그 사람만 한 번만 받을 수 있어요.</p>
+    
     <div class="gifts" id="gifts"></div></div>
-  <div class="box"><h2>명단 백업</h2><p class="sub">이 컴퓨터 브라우저에 저장돼요. 다른 컴퓨터로 옮기려면 백업 파일을 쓰세요.</p>
+  <div class="box"><h2>명단 백업</h2>
     <div class="row"><button id="bExp">백업 파일 받기</button><button id="bImp">백업 불러오기</button><input type="file" id="fImp" accept=".json" hidden></div></div>
 </aside>
 </div></div>
