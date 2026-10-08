@@ -81,10 +81,12 @@ let tmT=0;function toast(m){const t=$('toast');t.textContent=m;t.classList.add('
 function load(k,d){try{return JSON.parse(localStorage.getItem(k)||'')||d;}catch(e){return d;}}
 function store(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){toast('이 브라우저에 저장할 수 없어요');}}
 let L=load(ADM,{}),G=load(GKEY,[]);
-const ON={on:false,key:'',pending:{}};
+const ON={on:false,key:'',codes:[]};
+const GSEC='ashen-abyss·gift·v2·9f3c71e2d48b';
+async function hmac24(t){const e=new TextEncoder(),k=await crypto.subtle.importKey('raw',e.encode(GSEC),{name:'HMAC',hash:'SHA-256'},false,['sign']);const s=new Uint8Array(await crypto.subtle.sign('HMAC',k,e.encode(t)));return [...s.slice(0,12)].map(x=>x.toString(16).padStart(2,'0')).join('');}
 async function pull(){if(!ON.key)return;try{const r=await fetch('/api/admin/players',{headers:{'x-admin-key':ON.key},cache:'no-store'});
   if(r.status===401){$('netMsg').textContent='관리자 비밀번호가 틀렸어요';ON.key='';store(KEY+'_akey','');return;}
-  const j=await r.json();for(const v of (j.players||[])){if(!L[v.pid]||(L[v.pid].t||0)<=(v.t||0))L[v.pid]={...v,net:1};}ON.pending=j.pending||{};store(ADM,L);render();
+  const j=await r.json();for(const v of (j.players||[])){if(!L[v.pid]||(L[v.pid].t||0)<=(v.t||0))L[v.pid]={...v,net:1};}ON.codes=j.codes||[];store(ADM,L);render();
   $('netMsg').textContent=`서버 연결됨 · 자동 보고 ${(j.players||[]).length}명 · ${new Date().toLocaleTimeString()} 갱신`;}catch(e){$('netMsg').textContent='서버에 연결하지 못했어요 · 잠시 뒤 다시 시도해요';}}
 (async()=>{if(!/^https?:$/.test(location.protocol))return;try{const r=await fetch('/api/ping',{cache:'no-store'});const j=await r.json();if(!j||!j.ok)return;ON.on=true;$('netBox').hidden=false;
   if(!j.admin)$('netMsg').textContent='서버에 ADMIN_KEY가 아직 없어요. Render 환경 변수에 넣어 주세요.';ON.key=load(KEY+'_akey','')||'';if(ON.key){$('akey').value='';pull();}setInterval(pull,20000);}catch(e){}})();
@@ -99,16 +101,17 @@ function render(){const q=$('q').value.trim().toLowerCase(),s=$('sort').value;le
   $('count').textContent=`참여자 ${A.length}명`;
   if(q)A=A.filter(v=>(v.name||'').toLowerCase().includes(q));
   A.sort((a,b)=>s==='name'?(a.name||'').localeCompare(b.name||''):s==='t'?(b.t||0)-(a.t||0):s==='fin'?(b.fin||0)-(a.fin||0)||(b.lv||0)-(a.lv||0):(b.lv||0)-(a.lv||0));
-  $('cards').innerHTML=A.length?A.map(v=>`<div class="card"><div class="top"><div class="nm">${esc(v.name)}<small>Lv ${v.lv} · ${esc(v.title)}</small></div><div class="meta">${v.net?'자동 보고':'코드 보고'} ${ago(v.t)}${ON.pending&&ON.pending[v.pid]?` · 안 받은 선물 ${ON.pending[v.pid]}개`:''}</div></div>
+  $('cards').innerHTML=A.length?A.map(v=>`<div class="card"><div class="top"><div class="nm">${esc(v.name)}<small>Lv ${v.lv} · ${esc(v.title)}</small></div><div class="meta">${v.net?'자동 보고':'코드 보고'} ${ago(v.t)}</div></div>
     <div class="kv"><div><span>현재 위치</span>${esc(v.town||'-')}</div><div><span>마지막 보스</span>${esc(v.lastBoss)}</div><div><span>최종 보스</span>${v.fin||0} / 9</div>
       <div><span>공격</span>${v.atk} <span>방어</span>${v.def} <span>체력</span>${v.hp}</div><div><span>골드</span>${Number(v.gold||0).toLocaleString()}G</div><div><span>플레이</span>${ptime(v.playMs)} <span>사망</span>${v.deaths||0}번</div>
       ${v.st?`<div><span>스탯</span>${Object.entries(v.st).map(([k,x])=>esc(STN[k]||k)+' '+x).join(' · ')}</div>`:''}</div>
     <div class="gear"><div><span>무기</span>${gearTxt(v.gear&&v.gear.w)}</div><div><span>방어구</span>${gearTxt(v.gear&&v.gear.a)}</div><div><span>방패</span>${gearTxt(v.gear&&v.gear.s)}</div><div><span>망토</span>${gearTxt(v.gear&&v.gear.c)}</div></div>
     <div class="row"><button data-a="save" data-p="${esc(v.pid)}" ${v.save?'':'disabled'}>진행 저장</button><button data-a="gift" data-p="${esc(v.pid)}">선물 주기</button><button class="del" data-a="del" data-p="${esc(v.pid)}">명단에서 지우기</button></div></div>`).join('')
-    :`<div class="empty">${Object.keys(L).length?'검색 결과가 없어요':'아직 등록한 참여자가 없어요.<br>참여자에게 받은 보고 코드를 위에 붙여 넣으세요.'}</div>`;
+    :`<div class="empty">${Object.keys(L).length?'검색 결과가 없어요':'아직 참여자가 없어요.'}</div>`;
   const cur=$('gTo').value;$('gTo').innerHTML=Object.values(L).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(v=>`<option value="${esc(v.pid)}">${esc(v.name)} (Lv ${v.lv})</option>`).join('')||'<option value="">참여자를 먼저 등록하세요</option>';
   if(cur&&L[cur])$('gTo').value=cur;renderGifts();}
-function renderGifts(){$('gifts').innerHTML=G.slice(-30).reverse().map(g=>`<div><span>${esc(g.toName)} · ${esc(g.what)}</span><span class="meta">${ago(g.t).split(' (')[0]}</span></div>`).join('');}
+function renderGifts(){const nm=pid=>(L[pid]&&L[pid].name)||'?';const A=ON.key&&ON.codes.length?ON.codes.map(c=>({toName:nm(c.to),what:c.what,t:c.t,code:c.code,used:c.used})):G.slice(-30).reverse();
+  $('gifts').innerHTML=A.map(g=>`<div><span>${esc(g.toName)} · ${esc(g.what)}${g.code?`<br><span class="meta" style="font-family:monospace">${esc(g.code)}</span>`:''}</span><span class="meta">${g.used?'<span style="color:var(--green)">받음</span>':g.code?'안 받음':''} ${ago(g.t).split(' (')[0]}</span></div>`).join('');}
 function saveFile(name,data){const bl=new Blob([data],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
 $('cards').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const v=L[b.dataset.p];if(!v)return;
   if(b.dataset.a==='save'){const code=btoa(unescape(encodeURIComponent(JSON.stringify(v.save))));saveFile(`잿빛심연_${v.name}_Lv${v.lv}.txt`,code);toast('저장 파일을 받았어요 · 게임의 저장 관리에서 불러올 수 있어요');}
@@ -125,12 +128,15 @@ const gearSlots=new Set(['무기','방어구','방패','망토','장비']);
 function pickItem(){const v=$('gItem').value.trim();if(!v)return null;const [nm,cat]=v.split(' · ');let c=ITEMS.filter(x=>x[1]===nm&&(!cat||x[2]===cat));if(!c.length){const n=v.replace(/\s+/g,'');c=ITEMS.filter(x=>x[1].replace(/\s+/g,'')===n);if(!c.length)c=ITEMS.filter(x=>x[1].replace(/\s+/g,'').includes(n));}return c[0]||null;}
 $('gItem').oninput=()=>{const it=pickItem();$('gEW').style.visibility=it&&gearSlots.has(it[2])?'visible':'hidden';};
 $('gKind').onchange=()=>{const g=$('gKind').value==='gold';$('gItemW').hidden=g;$('gGoldW').hidden=!g;};
-$('bGift').onclick=()=>{const v=L[$('gTo').value];if(!v){toast('받는 사람을 고르세요');return;}
+$('bGift').onclick=async()=>{const v=L[$('gTo').value];if(!v){toast('받는 사람을 고르세요');return;}
   const g={gid:Math.random().toString(36).slice(2,10)+Date.now().toString(36),to:v.pid,uid:v.uid||null,t:Date.now()};let what='';
   if($('gKind').value==='gold'){const n=Math.floor(+$('gGold').value);if(!(n>0)){toast('골드를 적어 주세요');return;}g.gold=n;what=n.toLocaleString()+'G';}
   else{const it=pickItem();if(!it){toast('없는 아이템이에요');return;}const n=Math.max(1,Math.min(9999,Math.floor(+$('gN').value)||1));g.k=it[0];g.n=n;const isG=gearSlots.has(it[2]);if(isG){const e=+$('gE').value;if(e)g.e=e;}what=`${it[1]}${isG&&g.e?' +'+g.e:''}${n>1?' ×'+n:''}`;}
-  const b=b64e(g);$('gOut').value='G1.'+b+'.'+chk(b);$('gOutW').hidden=false;G.push({toName:v.name,what,t:g.t,gid:g.gid});if(G.length>200)G=G.slice(-200);store(GKEY,G);renderGifts();toast(`${v.name}에게 줄 선물 코드를 만들었어요`);
-  if(v.net&&ON.key){fetch('/api/admin/gift',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':ON.key},body:JSON.stringify({gift:g})}).then(r=>r.json()).then(j=>{if(j&&j.ok){toast(`${v.name}에게 서버로 보냈어요 · 접속하면 자동으로 받아요`);pull();}}).catch(()=>{});}};
+  $('gOutW').hidden=false;$('gOut').value='만드는 중…';
+  if(v.net&&ON.key){try{const r=await fetch('/api/admin/gift',{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':ON.key},body:JSON.stringify({gift:g,what})});const j=await r.json();
+      if(j&&j.code){$('gOut').value=j.code;toast(`${v.name}에게 줄 선물 코드를 만들었어요`);pull();return;}}catch(e){}
+    $('gOut').value='';toast('서버에서 코드를 만들지 못했어요');return;}
+  const b=b64e(g);$('gOut').value='G2.'+b+'.'+await hmac24(b);G.push({toName:v.name,what,t:g.t,gid:g.gid});if(G.length>200)G=G.slice(-200);store(GKEY,G);renderGifts();toast(`${v.name}에게 줄 선물 코드를 만들었어요`);};
 $('bGCopy').onclick=()=>{const t=$('gOut');t.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(t.value);toast('복사했어요');};
 $('bExp').onclick=()=>{const d=new Date();saveFile(`잿빛심연_관리자명단_${d.getMonth()+1}${String(d.getDate()).padStart(2,'0')}.json`,JSON.stringify({v:1,players:L,gifts:G}));};
 $('bImp').onclick=()=>$('fImp').click();

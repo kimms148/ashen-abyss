@@ -4784,7 +4784,7 @@ function openChar(){const p=S.p,wg=wG(),ag=aG(),sg=sG(),n=need(p.lv);
   panel(`<h2>내 정보</h2>${lookBox()}
   <div class="stat2"><span>레벨 <b>${p.lv}</b></span><span>직업 <b>${jobName()}</b></span><span>경험치 <b>${p.exp} / ${n}</b></span><span>다음 레벨까지 <b>${n-p.exp}</b></span><span>체력 <b>${p.hp} / ${p.maxhp}</b></span><span>소지금 <b>${p.gold}G</b></span><span>공격력 <b>${atk()}</b></span><span>방어력 <b>${def()}</b></span><span>기본 공격력 <b>${p.atk}</b></span><span>기본 방어력 <b>${p.def}</b></span><span>행운 <b>${luk()}</b></span><span>스탯 포인트 <b>${stInit(),p.sp}</b></span><span>쓰러뜨린 적 <b>${p.kills}</b></span><span>고용한 용병 <b>${(p.mercs||[]).length}명</b></span></div>
   ${statBox()}<h2 style="font-size:17px">장비</h2><div class="list">${eqRow('w',wg,p.wgear,'맨손')}${eqRow('a',ag,p.agear,'평상복')}${eqRow('c',cG(),p.cgear,'망토 없음')}${eqRow('s',sg,p.sgear,'방패 없음')}</div>
-  ${skillInfo()}<button data-act="close">닫기 (F)</button>`);}
+  ${skillInfo()}<h2 style="font-size:16px;margin-top:14px">코드 입력</h2><div class="btns" style="display:flex;gap:6px"><input id="codeIn" maxlength="400" autocomplete="off" autocapitalize="characters" spellcheck="false" style="flex:1;min-width:0;background:#1c1826;color:#f0e6d4;border:1px solid #3a3446;border-radius:4px;padding:8px;font:14px inherit"><button class="primary" data-act="codein">입력</button></div><button data-act="close">닫기 (F)</button>`);}
 const ENH_OK=[95,90,80,70,60,50,40,30,20],ENH_BRK=[0,0,0,5,10,15,20,25,30];
 const STV={hp:12,atk:2,def:1},STN={hp:'체력',atk:'공격력',def:'방어력',luk:'행운'};
 function stInit(){const p=S.p;if(!p.st)p.st={hp:p.lv-1,atk:p.lv-1,def:p.lv-1,luk:0};if(p.sp==null)p.sp=0;return p.st;}
@@ -5564,7 +5564,7 @@ function openSaveIO(){S.svFrom=S.mode==='title'?'title':(S.svFrom==='title'&&S.m
   let raw='';try{raw=localStorage.getItem(KEY)||'';}catch(e){}const code=raw?btoa(unescape(encodeURIComponent(raw))):'';
   panel(`<h2>저장 관리</h2><p class="sub">이 코드를 복사해 두면 다른 기기나 브라우저에서 이어서 할 수 있어요.</p>
   <textarea id="svOut" readonly style="width:100%;height:64px;font-size:11px;background:#120e18;color:#cfc4b0;border:1px solid #3a3040">${code||'저장된 진행 상황이 없어요'}</textarea>
-  <div class="btns"><button data-act="svcopy" ${code?'':'disabled'}>코드 복사</button><button data-act="svfile" ${code?'':'disabled'}>파일로 받기</button>${S.svFrom==='title'?'':'<button data-act="openrep">진행 보고 · 선물 받기</button>'}</div>
+  <div class="btns"><button data-act="svcopy" ${code?'':'disabled'}>코드 복사</button><button data-act="svfile" ${code?'':'disabled'}>파일로 받기</button>${S.svFrom==='title'?'':'<button data-act="openrep">진행 보고</button>'}</div>
   <h2 style="font-size:16px;margin-top:12px">불러오기</h2><p class="sub">저장 코드를 붙여 넣거나 저장 파일을 고르세요. 지금 진행 상황은 덮어써져요.</p>
   <textarea id="svIn" style="width:100%;height:64px;font-size:11px;background:#120e18;color:#efe6d4;border:1px solid #3a3040" placeholder="저장 코드 붙여 넣기"></textarea>
   <div class="btns"><button class="primary" data-act="svload">코드로 불러오기</button><button data-act="svpick">파일 고르기</button></div>
@@ -6368,7 +6368,6 @@ function cmdFind(q){const n=q.replace(/\s+/g,''),pool=[];
   return pool.find(x=>nm(x[1])===n)||pool.find(x=>nm(x[1]).includes(n))||null;}
 function runCmd(t){t=t.trim();{const c=t.replace(/\s/g,'');if(c==='관리자'){setTimeout(openAdmin,50);return;}if(c==='진행보고'||c==='보고'){setTimeout(()=>openReport(),50);return;}
   const nm=t.match(/^이름\s+(.+)$/);if(nm){S.p.pname=nm[1].trim().slice(0,12);save();toast('이름을 정했어요',S.p.pname,true);return;}
-  const gc=t.match(/^선물\s+(\S+)$/);if(gc){giftRedeem(gc[1]);return;}
   const gp=t.match(/^give\s+(.+)$/i);if(gp&&giftCmd(gp[1].trim()))return;}if(/^(명령어|도움말|help|\?)$/i.test(t.replace(/\s/g,''))){setTimeout(openCmdList,50);return;}{const c=t.replace(/\s/g,'').toLowerCase();
   if(c==='wave1'||c==='웨이브1'){setTimeout(()=>{S.flags.warD={1:0,2:0};startWar(true,1);},50);return;}
   if(c==='wave2'||c==='웨이브2'){setTimeout(()=>{S.flags.warD={1:0,2:0};startWar(true,2);},50);return;}
@@ -6386,7 +6385,7 @@ function preEnding(){const f=S.flags,p=S.p;const c=$('cine');if(c)c.remove();doc
   delete f.endSeen;f.badEnd=0;f.warPending=0;S.map=null;loadTown('vvillage',9,1);p.dir=[0,-1];p.hp=p.maxhp;S.mode='play';hud();save();
   toast('엔딩 전으로','엔딩 진행 상황을 초기화했어요 · 위쪽 문이 볼카르 왕성이에요',true);log('재의 마을 북문 앞. 이 문을 지나면 볼카르 왕성이다.');}
 const CMD_LIST=[['기본',[['명령어','쓸 수 있는 명령어 목록 보기'],['점검','게임 데이터 자동 점검']]],
- ['참여자 · 관리자',[['관리자','참여자 진행 상황 보기 · 보고 코드 등록 · 진행 저장'],['give 플레이어이름 아이템이름','그 플레이어에게 선물 (개수·골드도 가능)'],['진행보고','내 진행 보고 코드 · 선물 받기 (보고)'],['이름 새이름','관리자에게 보일 내 이름 정하기'],['선물 코드','받은 선물 코드로 아이템 받기']]],
+ ['참여자 · 관리자',[['관리자','참여자 진행 상황 보기 · 보고 코드 등록 · 진행 저장'],['give 플레이어이름 아이템이름','그 플레이어에게 선물 (개수·골드도 가능)'],['진행보고','내 진행 보고 코드 (보고)'],['이름 새이름','관리자에게 보일 내 이름 정하기']]],
  ['지급',[['give 100000g','골드 지급 (100000골드도 가능)'],['give 아이템이름','아이템이나 장비 1개 지급'],['give 아이템이름 50','아이템 여러 개 지급 (최대 9999)'],['최종9강','최종 보스 장비 전부 +9 · 각성 (최종강화)']]],
  ['이동',[['tp 왕국이름','그 왕국 왕성으로 이동'],['tp 마을이름','그 마을로 이동'],['tp 주민이름','그 주민 옆으로 이동'],['엔딩전','엔딩 진행 초기화 · 재의 마을 북문 앞으로 (엔딩 전)']]],
  ['엔딩 미리보기',[['해피엔딩','해피 엔딩 미리보기'],['배드엔딩','배드 엔딩 미리보기 (히든엔딩)'],['해피크레딧','해피 엔딩 크레딧만'],['배드크레딧','배드 엔딩 크레딧만 (엔딩크레딧)'],['흑염세계','배드엔딩 뒤 세계 켜기/끄기']]],
@@ -6438,7 +6437,18 @@ function giftGive(g,auto){const p=S.p;p.giftsUsed=p.giftsUsed||[];if(!g||!g.gid)
   if(!got){toast('가방이 꽉 찼어요','가방을 비우고 다시 받아 주세요',true);return false;}
   p.giftsUsed.push(g.gid);if(p.giftsUsed.length>300)p.giftsUsed=p.giftsUsed.slice(-300);hud();
   const nm=g.gold?`${g.gold.toLocaleString()}G`:`${GEAR[g.k]?GEAR[g.k].name:itemOf(g.k).name}${(g.n||1)>1?' ×'+g.n:''}`;toast('관리자의 선물이 도착했다',nm,true);log(`관리자에게서 선물을 받았다: ${nm}`);return true;}
-function giftRedeem(code){const g=codeRead(code,'G1');if(!g){toast('선물 코드가 올바르지 않아요','',true);return;}if(giftGive(g,false))save();}
+const GSEC='ashen-abyss·gift·v2·9f3c71e2d48b';
+async function hmac24(t){const e=new TextEncoder(),k=await crypto.subtle.importKey('raw',e.encode(GSEC),{name:'HMAC',hash:'SHA-256'},false,['sign']);const s=new Uint8Array(await crypto.subtle.sign('HMAC',k,e.encode(t)));return [...s.slice(0,12)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+async function giftCode2(g){const b=b64e(g);return 'G2.'+b+'.'+await hmac24(b);}
+let REDEEM_T=0;
+async function giftRedeem(code){code=(code||'').trim().replace(/\s/g,'');if(!code)return;const now=Date.now();if(now-REDEEM_T<1500)return;REDEEM_T=now;
+  const up=code.toUpperCase().replace(/-/g,'');
+  if(/^[A-Z2-9]{12}$/.test(up)){if(!SRV.on){toast('코드를 쓸 수 없어요','서버에 연결된 게임에서만 쓸 수 있어요',true);return;}
+    try{const r=await fetch('/api/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid:myPid(),psec:myPsec(),code:up}),cache:'no-store'});const j=await r.json();
+      if(!j.gift){toast('코드를 쓸 수 없어요',j.error||'올바르지 않은 코드예요',true);return;}if(giftGive(j.gift,true))save();}catch(e){toast('서버에 연결하지 못했어요','잠시 뒤 다시 입력해 주세요',true);}return;}
+  const m=code.match(/^G2\.([A-Za-z0-9_-]+)\.([0-9a-f]{24})$/);let g=null;
+  if(m){try{if(await hmac24(m[1])===m[2])g=b64d(m[1]);}catch(e){}}
+  if(!g){toast('코드를 쓸 수 없어요','올바르지 않은 코드예요',true);return;}if(giftGive(g,false))save();}
 /* 관리자 명단: 인터넷 보고(db) + 붙여 넣은 보고 코드 */
 const ADM_KEY=KEY+'_admin';
 function admLocal(){try{return JSON.parse(localStorage.getItem(ADM_KEY)||'{}');}catch(e){return {};}}
@@ -6452,10 +6462,10 @@ function giftCmd(a){const L=Object.values(admAll()).sort((x,y)=>(y.name||'').len
   const gm=rest.match(/^([\d,]+)\s*(g|골드)$/i);
   if(gm)g.gold=+gm[1].replace(/,/g,'');else{let n=1;const c=rest.match(/^(.+?)\s+(\d+)\s*(개)?$/);if(c){rest=c[1];n=Math.max(1,Math.min(9999,+c[2]));}const f=cmdFind(rest);if(!f){toast('없는 아이템',rest,true);return true;}g.k=f[0];g.n=n;}
   const nm=g.gold?`${g.gold.toLocaleString()}G`:`${GEAR[g.k]?GEAR[g.k].name:itemOf(g.k).name}${g.n>1?' ×'+g.n:''}`;
-  const b=b64e(g),code='G1.'+b+'.'+chk(b);let sent=false;
-  const show=()=>panel(`<h2>선물 · ${esc(v.name)}</h2><p class="sub">${esc(nm)}</p>${sent?'<p class="sub" style="color:#8fd18f">인터넷으로 바로 보냈어요. 그 플레이어가 게임을 열면 자동으로 받아요.</p>':''}<p class="sub">아래 선물 코드를 보내 주면, 플레이어가 명령어 창에 <b>선물 코드</b>를 입력하거나 저장 관리의 선물 받기에 붙여 넣어 받을 수 있어요. 그 플레이어만, 한 번만 받을 수 있어요.</p>
+  let code='만드는 중…',sent=false;
+  const show=()=>panel(`<h2>선물 · ${esc(v.name)}</h2><p class="sub">${esc(nm)}</p>${sent?'<p class="sub" style="color:#8fd18f">인터넷으로 바로 보냈어요. 그 플레이어가 게임을 열면 자동으로 받아요.</p>':''}
     <textarea id="giftOut" readonly style="width:100%;height:56px;font-size:11px;background:#120e18;color:#cfc4b0;border:1px solid #3a3040">${code}</textarea><div class="btns"><button data-act="cpy" data-arg="giftOut">코드 복사</button></div><button data-act="close">닫기 (F)</button>`);
-  show();if(NET.db&&NET.owner&&v.uid){NET.db.doc('gifts/'+v.uid+'/box/'+g.gid).set(g).then(()=>{sent=true;if(S.mode==='panel')show();}).catch(()=>{});}
+  show();giftCode2(g).then(c=>{code=c;if(S.mode==='panel'&&$('giftOut'))show();});if(NET.db&&NET.owner&&v.uid){NET.db.doc('gifts/'+v.uid+'/box/'+g.gid).set(g).then(()=>{sent=true;if(S.mode==='panel')show();}).catch(()=>{});}
   return true;}
 const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function fmtGear(x){return x?`${esc(x.n)}${x.e?' +'+x.e:''}${x.aw?' (각성)':''}`:'없음';}
@@ -6472,16 +6482,14 @@ function openAdmin(){const L=Object.values(admAll()).sort((a,b)=>(b.lv||0)-(a.lv
 function openReport(){const p=S.p,code=repCode(reportObj(true));
   panel(`<h2>진행 보고</h2><p class="sub">${SRV.on?`서버에 자동으로 보고 중이에요${SRV.ok?' · 마지막 보고 '+fmtAgo(SRV.ok):''}. 관리자가 보낸 선물도 자동으로 받아요.`:NET.db&&NET.uid?`인터넷으로 자동 보고 중이에요${NET.ok?' · 마지막 보고 '+fmtAgo(NET.ok):''}. 아래 코드는 따로 보낼 때 써요.`:'아래 코드를 복사해서 관리자에게 보내 주세요. 관리자가 등록하면 진행 상황을 볼 수 있어요.'}</p>
     <div class="item"><div><b>이름</b><small>관리자에게 보이는 이름이에요</small></div><input id="repName" maxlength="12" value="${esc(p.pname||myName())}" style="width:130px;background:#1c1826;color:#f0e6d4;border:1px solid #3a3446;border-radius:4px;padding:6px"><button data-act="repname">바꾸기</button></div>
-    <textarea id="repOut" readonly style="width:100%;height:56px;font-size:11px;background:#120e18;color:#cfc4b0;border:1px solid #3a3040">${code}</textarea><div class="btns"><button data-act="cpy" data-arg="repOut">보고 코드 복사</button></div>
-    <h2 style="font-size:16px;margin-top:12px">선물 받기</h2><p class="sub">관리자에게 받은 선물 코드를 붙여 넣으세요.</p>
-    <textarea id="giftIn" style="width:100%;height:48px;font-size:11px;background:#120e18;color:#efe6d4;border:1px solid #3a3040"></textarea><div class="btns"><button class="primary" data-act="giftin">선물 받기</button></div><button data-act="close">닫기 (F)</button>`);}
+    <textarea id="repOut" readonly style="width:100%;height:56px;font-size:11px;background:#120e18;color:#cfc4b0;border:1px solid #3a3040">${code}</textarea><div class="btns"><button data-act="cpy" data-arg="repOut">보고 코드 복사</button></div><button data-act="close">닫기 (F)</button>`);}
 function fileSaveTxt(name,data){(async()=>{if(window.claude&&window.claude.use){let dl=null;try{dl=await window.claude.use('downloads');}catch(e){}
     if(dl){try{await dl.save({filename:name,data});toast('파일을 받았어요',name,false);}catch(e){if(e&&e.code!=='declined')toast('파일 저장 실패','',true);}return;}}
   try{const bl=new Blob([data],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();}catch(e){toast('파일 저장 실패','',true);}})();}
 Object.assign(ACT,{
   cpy(id){const t=$(id);if(!t)return;t.select();let ok=false;try{ok=document.execCommand('copy');}catch(e){}if(!ok&&navigator.clipboard)navigator.clipboard.writeText(t.value).then(()=>toast('복사했어요','',false)).catch(()=>{});else toast(ok?'복사했어요':'직접 길게 눌러 복사해 주세요','',false);},
   repname(){const v=($('repName').value||'').trim().slice(0,12);if(!v)return;S.p.pname=v;save();repSync(true);openReport();toast('이름을 정했어요',v,false);},
-  giftin(){giftRedeem($('giftIn').value);},
+  async codein(){const el=$('codeIn');if(!el)return;const v=el.value;el.value='';await giftRedeem(v);},
   openrep(){openReport();},
   admadd(){const o=codeRead($('admIn').value,'R1');if(!o||!o.pid){toast('보고 코드가 올바르지 않아요','',true);return;}const L=admLocal();if(L[o.pid]&&(L[o.pid].t||0)>(o.t||0)){toast('이미 더 최근 보고가 있어요',o.name,true);return;}L[o.pid]=o;admSave(L);toast('등록했어요',`${o.name} · Lv ${o.lv}`,true);openAdmin();},
   admdel(pid){const L=admLocal();delete L[pid];admSave(L);openAdmin();},

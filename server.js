@@ -6,9 +6,9 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const GH_TOKEN = process.env.GH_TOKEN || '', GH_REPO = process.env.GH_REPO || '', GH_BRANCH = process.env.GH_BRANCH || 'data';
 const PUB = path.join(__dirname, 'public'), DATA_DIR = path.join(__dirname, 'data'), DATA_FILE = path.join(DATA_DIR, 'data.json');
-let DB = { players: {}, gifts: {} }, dirty = false, ghSha = null;
+let DB = { players: {}, gifts: {}, codes: {} }, dirty = false, ghSha = null;
 
-function loadLocal() { try { DB = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); DB.players ||= {}; DB.gifts ||= {}; } catch (e) {} }
+function loadLocal() { try { DB = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); DB.players ||= {}; DB.gifts ||= {}; DB.codes ||= {}; } catch (e) {} }
 function saveLocal() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(DATA_FILE, JSON.stringify(DB)); } catch (e) { console.error('save', e.message); } }
 
 /* ---------- GitHub 백업 (공개 저장소여도 남이 못 읽게 ADMIN_KEY로 암호화) ---------- */
@@ -30,7 +30,7 @@ async function ghLoad() {
     const j = await r.json(); ghSha = j.sha;
     let txt = Buffer.from(j.content || '', 'base64').toString('utf8');
     if (!txt && j.download_url) txt = await (await fetch(j.download_url, { headers: { Authorization: 'Bearer ' + GH_TOKEN } })).text();
-    const d = JSON.parse(dec(txt)); DB = { players: d.players || {}, gifts: d.gifts || {} }; saveLocal();
+    const d = JSON.parse(dec(txt)); DB = { players: d.players || {}, gifts: d.gifts || {}, codes: d.codes || {} }; saveLocal();
     console.log('GitHub 백업에서 불러옴:', Object.keys(DB.players).length, '명');
   } catch (e) { console.error('ghLoad', e.message); }
 }
@@ -55,6 +55,13 @@ const safeEq = (a, b) => { a = Buffer.from(String(a)); b = Buffer.from(String(b)
 const isAdmin = req => ADMIN_KEY && safeEq(req.headers['x-admin-key'] || '', ADMIN_KEY);
 const okId = s => typeof s === 'string' && /^[a-z0-9]{6,32}$/.test(s);
 const okSec = s => typeof s === 'string' && /^[a-z0-9]{12,64}$/.test(s);
+/* 선물 코드: 32글자 12자리 무작위(60비트). 틀린 시도는 10분에 모험가마다 8번, 같은 인터넷(학교 등)마다 40번까지 */
+const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function newCode() { let c; do { c = Array.from({ length: 12 }, () => CODE_ABC[crypto.randomInt(32)]).join(''); } while (DB.codes[c]); return c; }
+const fmtCode = c => c.replace(/(.{4})(?=.)/g, '$1-');
+const FAILS = new Map();
+function tooMany(k, lim) { const f = FAILS.get(k); if (!f) return false; if (Date.now() - f.t > 600000) { FAILS.delete(k); return false; } return f.n >= lim; }
+function fail(ip) { const f = FAILS.get(ip); if (!f || Date.now() - f.t > 600000) FAILS.set(ip, { n: 1, t: Date.now() }); else f.n++; }
 function playerOk(pid, psec) { const p = DB.players[pid]; return p && safeEq(p.psec, psec); }
 
 const server = http.createServer(async (req, res) => {
@@ -79,14 +86,26 @@ const server = http.createServer(async (req, res) => {
       const b = await body(req); if (!playerOk(b.pid, b.psec)) return send(res, 403, { error: 'key' });
       DB.gifts[b.pid] = (DB.gifts[b.pid] || []).filter(g => g.gid !== b.gid); changed(); return send(res, 200, { ok: 1 });
     }
+    /* 참여자: 선물 코드 쓰기 */
+    if (P === '/api/redeem' && req.method === 'POST') {
+      const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+      const b = await body(req), who = 'p:' + String(b.pid || '').slice(0, 32);
+      if (tooMany('i:' + ip, 40) || tooMany(who, 8)) return send(res, 429, { error: '잠시 뒤 다시 입력해 주세요' }); if (!playerOk(b.pid, b.psec)) { fail('i:' + ip); fail(who); return send(res, 200, { error: '먼저 게임을 저장해 주세요' }); }
+      const code = String(b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, ''), c = DB.codes[code];
+      if (!c) { fail('i:' + ip); fail(who); return send(res, 200, { error: '올바르지 않은 코드예요' }); }
+      if (c.to !== b.pid) { fail('i:' + ip); fail(who); return send(res, 200, { error: '다른 모험가에게 보낸 코드예요' }); }
+      if (c.used) return send(res, 200, { error: '이미 쓴 코드예요' });
+      c.used = Date.now(); changed(); return send(res, 200, { gift: c.g });
+    }
     /* 관리자 */
     if (P.startsWith('/api/admin/')) {
       if (!isAdmin(req)) return send(res, 401, { error: 'admin' });
-      if (P === '/api/admin/players') return send(res, 200, { players: Object.values(DB.players).map(p => p.report), pending: Object.fromEntries(Object.entries(DB.gifts).map(([k, v]) => [k, v.length])) });
+      if (P === '/api/admin/players') return send(res, 200, { players: Object.values(DB.players).map(p => p.report), codes: Object.entries(DB.codes).map(([k, c]) => ({ code: fmtCode(k), to: c.to, what: c.what, t: c.t, used: c.used || 0 })).sort((a, b) => b.t - a.t).slice(0, 200) });
       if (P === '/api/admin/gift' && req.method === 'POST') {
         const b = await body(req), g = b.gift || {};
         if (!okId(g.to) || !DB.players[g.to] || typeof g.gid !== 'string') return send(res, 400, { error: 'bad' });
-        (DB.gifts[g.to] ||= []).push(g); changed(); return send(res, 200, { ok: 1 });
+        const code = newCode(); DB.codes[code] = { g, to: g.to, what: String(b.what || '').slice(0, 80), t: Date.now(), used: 0 }; changed();
+        return send(res, 200, { ok: 1, code: fmtCode(code) });
       }
       if (P === '/api/admin/delete' && req.method === 'POST') { const b = await body(req); delete DB.players[b.pid]; delete DB.gifts[b.pid]; changed(); return send(res, 200, { ok: 1 }); }
       return send(res, 404, { error: 'none' });
