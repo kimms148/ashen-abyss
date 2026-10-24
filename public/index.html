@@ -3549,7 +3549,7 @@ function loadTown(id,x,y){if(S.map&&S.map.id!==id&&endGate(id))return;if(S.map&&
   S.map={id,name:T.name,w:grid[0].length,h:grid.length,grid,npcs:(S.flags.badEnd?[]:T.npcs()).map((n,i)=>({...n,spr:NPCV[n.name]||n.spr,id:i*7+3})),dungeon:false,torches:[],stones:(T.stones||[]).map(o=>({...o}))};
   S.allies=[];
   S.ents=[];S.items=[];S.parts=[];S.slashes=[];S.claws=[];S.pending=[];S.shots=[];S.traps=[];S.tele=[];S.floor=0;S.dun=null;placePlayer(x,y);computeVis();snapCam();if(fromD)mercReturn();
-  if(T.field){S.map.field=true;spawnField(T.field);}if(T.onEnter)T.onEnter();spawnMercs();const gN=gateNeeded(id);if(T.inn&&!gN)S.flags.home=id;try{addGuards(id);if(gN)startGate(id);}catch(e){console.warn('guards',e);}hud();
+  if(T.field){S.map.field=true;spawnField(T.field);}if(T.onEnter)T.onEnter();spawnMercs();const gN=gateNeeded(id)&&!tokGate(id);if(T.inn&&!gN)S.flags.home=id;try{addGuards(id);if(gN)startGate(id);}catch(e){console.warn('guards',e);}hud();
   if((id==='village'&&S.stage>=1)||(T.inn&&id!=='village'))save();
 }
 
@@ -4161,8 +4161,8 @@ function drawGuide(ox,oy,now){const pts=guidePath(now);if(!pts||pts.length<2)ret
   const [ex,ey]=pts[pts.length-1],r=3+Math.sin(now/200);cx.strokeStyle='rgba(255,211,107,.95)';cx.beginPath();cx.arc(ex*TS+ox+8,ey*TS+oy+12,r,0,Math.PI*2);cx.stroke();cx.restore();}
 function openQuestLog(){const on=QUESTS.filter(q=>QS()[q.id]),av=QUESTS.filter(q=>qAvail(q));
   const where=n=>{const id=npcTown(n);if(!id)return '';return `${(placeDesc(id)||'').split(' · ').slice(0,2).join(' · ')} · ${TOWNS[id].name}`;};
-  const toks=TOK_ORDER.filter(r=>hasTok(r)).map(r=>tokName(r));
-  panel(`<h2>퀘스트</h2><p class="sub">진행 중 ${on.length}개 · 목표를 채우면 맡긴 사람에게 돌아가 보고하세요</p><p class="sub">보유 증표 · ${toks.length?toks.join(', '):'아직 없음'}</p><div class="list">${on.length?on.map(q=>`<div class="item"><div><b>${q.title}</b><small>의뢰인 <b>${q.giver}</b> · ${where(q.giver)||'알 수 없음'}</small><small>${qGoal(q)} · ${qProg(q)} / ${q.n}${qReady(q)?' · <b style="color:var(--heal)">완료! 보고하러 가기</b>':''}</small><small>보상 ${qReward(q)}</small></div><button class="${qReady(q)?'primary':''}" data-act="qguide" data-arg="${q.giver}">${S.guide&&S.guide.name===q.giver?'안내 중':'길 안내'}</button></div>`).join(''):'<p class="sub">진행 중인 퀘스트가 없어요.</p>'}</div><p class="sub" style="margin-top:10px">새 퀘스트는 머리 위에 ! 가 뜬 주민에게 말을 걸면 받을 수 있어요.</p><button data-act="close">닫기 (F)</button>`);S.qwin=true;}
+  const toks=TOK_ORDER.filter(r=>hasTok(r)&&!(S.flags.tokSub||{})[r]).map(r=>tokName(r)),subToks=TOK_ORDER.filter(r=>(S.flags.tokSub||{})[r]).map(r=>tokName(r));
+  panel(`<h2>퀘스트</h2><p class="sub">진행 중 ${on.length}개 · 목표를 채우면 맡긴 사람에게 돌아가 보고하세요</p><p class="sub">보유 증표 · ${toks.length?toks.join(', '):'아직 없음'}${subToks.length?` · 제출한 증표 · ${subToks.join(', ')}`:''}</p><div class="list">${on.length?on.map(q=>`<div class="item"><div><b>${q.title}</b><small>의뢰인 <b>${q.giver}</b> · ${where(q.giver)||'알 수 없음'}</small><small>${qGoal(q)} · ${qProg(q)} / ${q.n}${qReady(q)?' · <b style="color:var(--heal)">완료! 보고하러 가기</b>':''}</small><small>보상 ${qReward(q)}</small></div><button class="${qReady(q)?'primary':''}" data-act="qguide" data-arg="${q.giver}">${S.guide&&S.guide.name===q.giver?'안내 중':'길 안내'}</button></div>`).join(''):'<p class="sub">진행 중인 퀘스트가 없어요.</p>'}</div><p class="sub" style="margin-top:10px">새 퀘스트는 머리 위에 ! 가 뜬 주민에게 말을 걸면 받을 수 있어요.</p><button data-act="close">닫기 (F)</button>`);S.qwin=true;}
 function toast(title,sub,big){S.toast={t0:performance.now(),title,sub,big};}
 function questCheck(){for(const q of QUESTS){const st=QS()[q.id];if(!st)continue;const r=qReady(q);if(r&&!st.told){st.told=true;toast('퀘스트 완료!',`${q.title} · ${q.giver}에게 돌아가세요`,true);log(`퀘스트 목표 달성! ${q.giver}에게 돌아가자.`);}else if(!r&&st.told)st.told=false;}}
 function questLog(){const on=QUESTS.filter(q=>QS()[q.id]);
@@ -5327,6 +5327,11 @@ function addGuards(id){const m=S.map,T=TOWNS[id];if(!m||S.flags.badEnd)return;co
   for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(m.grid[y][x]==='E'){add(gNear(m,x-2,y)||gNear(m,x+2,y),'dungeon');y=m.h;break;}}
 function routeGuards(dk){const m=S.map;if(!m||S.flags.badEnd)return;m.npcs=m.npcs||[];const r=DUNS[dk].realm||(dk[0]==='r'?'marcia':'noctis');const a=gNear(m,S.p.x-1,S.p.y),b=a&&gNear(m,S.p.x+1,S.p.y,[a]);if(a)m.npcs.push(mkGuard(r,a[0],a[1],'route'));if(b)m.npcs.push(mkGuard(r,b[0],b[1],'route'));}
 function gateNeeded(id){const T=TOWNS[id];if(!T||T.field||S.flags.badEnd)return false;const r=townRealm(id);return r!=='arven'&&!!REALM_DUN[r]&&!S.flags['gate_'+id];}
+/* 증표 입성: 이전 왕국 왕의 증표가 있으면 근위병에게 제출하고 싸움 없이 들어간다. 한 번 제출하면 그 왕국의 모든 마을을 언제든 드나들 수 있다 */
+function prevTok(id){const i=TOK_ORDER.indexOf(townRealm(id));return i>0?TOK_ORDER[i-1]:null;}
+function tokGate(id){const r=townRealm(id),pr=prevTok(id),T=TOWNS[id];if(!pr||!hasTok(pr)||!T)return false;const f=S.flags;f.tokSub=f.tokSub||{};f.tokSub[pr]=1;
+  for(const t in TOWNS)if(townRealm(t)===r&&!TOWNS[t].field)f['gate_'+t]=1;toast('입성 허가',T.name,true);
+  setTimeout(()=>{say([[gName(r),`멈춰라, 이방인. ${T.name}에 들어가려면 증표를 보여야 한다.`],['',`(${tokName(pr)}를 근위병에게 제출했다.)`],[gName(r),`…틀림없는 ${tokName(pr)}로군. 이제부터 ${REALM_KO[r]}은 언제든 드나들어도 좋다.`]],()=>{save();hud();});},350);return true;}
 function gateMigrate(){const f=S.flags;if(f.gatefix)return;f.gatefix=1;const ws=f.ws||{};for(const id in TOWNS){const r=townRealm(id);if(ws[id]||f.home===id||f.slept===id||(REALM_FIN[r]&&f['fk_'+REALM_FIN[r]])||(S.map&&S.map.id===id))f['gate_'+id]=1;}}
 function startGate(id){const m=S.map,r=townRealm(id),dk=REALM_DUN[r],D=DUNS[dk];if(!D)return;
   const mine=m.npcs.filter(n=>n.guard&&(n.grole==='village'||n.grole==='gate'));m.npcs=m.npcs.filter(n=>!mine.includes(n));
