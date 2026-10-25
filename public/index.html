@@ -265,6 +265,7 @@ body.incine #party,body.incine #log,body.incine #skrow,body.incine #bar9,body.in
       <div class="skrow" id="skrow"></div>
       <span class="pots">
         <button id="bQuest" type="button">퀘스트</button>
+        <button id="bPath" type="button" hidden>길찾기</button>
         <button id="bMerc" type="button">용병</button>
         <button id="bGolem" type="button">골렘</button>
         <button id="bBag" type="button">가방</button>
@@ -4142,7 +4143,7 @@ function openQuests(name){const qs=questsOf(name);
     const btn=st?(qReady(q)?`<button class="primary" data-act="qdone" data-arg="${q.id}">보고하기</button>`:`<button data-act="qdrop" data-arg="${q.id}">포기</button>`):qAvail(q)?`<button class="primary" data-act="qtake" data-arg="${q.id}">수락</button>`:'<button disabled>완료</button>';
     return `<div class="item"><div><b>${q.title}${d?` <span class="sub">· ${d}번 완료</span>`:''}${qRep(q)?' <span class="sub">· 반복</span>':''}</b><small>${qGoal(q)}${st?` · 진행 ${pr} / ${q.n}`:''}</small><small>보상 ${qReward(q)}</small></div>${btn}</div>`;}).join('')||'<p class="sub">지금은 맡길 퀘스트가 없대요.</p>'}</div><button data-act="close">닫기 (F)</button>`);}
 let TGRAPH=null;const NPC_TOWN={};
-function npcTown(n){if(n in NPC_TOWN)return NPC_TOWN[n];for(const id in TOWNS){const T=TOWNS[id];try{if(T.npcs&&T.npcs().some(x=>x.name===n))return NPC_TOWN[n]=id;}catch(e){}}return NPC_TOWN[n]=null;}
+function npcTown(n){if(n in NPC_TOWN)return NPC_TOWN[n];for(const id in TOWNS){const T=TOWNS[id];try{if(T.npcs&&T.npcs().some(x=>x.name===n))return NPC_TOWN[n]=id;}catch(e){}}return null;}
 function townGraph(){if(TGRAPH)return TGRAPH;TGRAPH={};for(const id in TOWNS){const T=TOWNS[id];TGRAPH[id]={};for(const ch in (T.exits||{})){const m=[...String(T.exits[ch]).matchAll(/loadTown\('(\w+)'/g)];if(m.length)TGRAPH[id][ch]=m[m.length-1][1];}}
   if(TGRAPH.village)TGRAPH.village.C='castle';if(TGRAPH.castle)TGRAPH.castle.D='village';return TGRAPH;}
 function townHop(from,to){const G=townGraph();if(!G[from])return null;const prev={[from]:null},q=[from];while(q.length){const c=q.shift();if(c===to)break;for(const ch in G[c]){const n=G[c][ch];if(!(n in prev)&&TOWNS[n]){prev[n]=[c,ch];q.push(n);}}}
@@ -4151,23 +4152,34 @@ const GUIDE={t:0,key:'',path:null};
 /* ---------- 길찾기 두루마리: 주민 이름을 정확히 적으면 그 주민까지의 경로를 알려 주고 노란 점선으로 안내한다. 찾았을 때만 한 장 쓰인다 ---------- */
 function townRoute(from,to){const G=townGraph();if(!G[from])return null;const prev={[from]:null},q=[from];while(q.length){const c=q.shift();if(c===to)break;for(const ch in G[c]){const n=G[c][ch];if(!(n in prev)&&TOWNS[n]){prev[n]=c;q.push(n);}}}
   if(!(to in prev))return null;const r=[];for(let c=to;c!=null;c=prev[c])r.push(c);return r.reverse();}
+/* 주민 이름 → 마을. 근위병처럼 여러 곳에 있는 이름은 지금 자리에서 가장 가까운 곳 */
+function pfFind(v){const id=npcTown(v);if(id)return id;const r=Object.keys(REALM_KO).find(k=>gName(k)===v);if(!r)return null;
+  const cand=Object.keys(TOWNS).filter(t=>townRealm(t)===r);if(!cand.length)return null;const cur=S.map&&TOWNS[S.map.id]?S.map.id:null;if(cur&&cand.includes(cur))return cur;
+  let best=cand[0],bl=1e9;if(cur)for(const t of cand){const R=townRoute(cur,t);if(R&&R.length<bl){bl=R.length;best=t;}}return best;}
+/* 길찾기 기록: 한 번 찾은 주민은 퀘스트 옆 길찾기 버튼에서 두루마리 없이 다시 안내받는다 */
+function pfStart(v,id){const p=S.p;S.guide={name:v,town:id,pf:1};GUIDE.key='';p.pfHist=(p.pfHist||[]).filter(h=>h.name!==v);p.pfHist.unshift({name:v,town:id,t:Date.now()});if(p.pfHist.length>30)p.pfHist.length=30;}
+function pfBtn(){const b=$('bPath');if(!b)return;const n=S.p&&S.mode!=='title'?(S.p.pfHist||[]).length:0;b.hidden=!n;b.style.color=S.guide&&S.guide.pf?'#ffd36b':'';}
+function openPathHist(){const p=S.p,L=p.pfHist||[],g=S.guide,nm=t=>TOWNS[t]?TOWNS[t].name:'';
+  const cur=g?`<div class="item"><div><b>지금 안내 중 · ${esc(g.name)}</b><small>${esc(nm(g.town||npcTown(g.name)))}</small></div><button data-act="pfquit">포기</button></div>`:'<p class="sub">지금은 안내 중인 길이 없어요.</p>';
+  const rows=L.map((h,i)=>{const on=g&&g.name===h.name;return `<div class="item"><div><b>${esc(h.name)}</b><small>${esc((placeDesc(h.town)||'').split(' · ').slice(0,2).join(' · '))} · ${esc(nm(h.town))}</small></div>${on?'<button disabled>안내 중</button>':`<button class="primary" data-act="pfgo" data-arg="${i}">다시 안내</button>`}</div>`;}).join('');
+  panel(`<h2>길찾기</h2>${cur}<p class="sub">전에 찾은 주민 · 다시 안내는 두루마리가 들지 않아요</p><div class="list">${rows}</div>${invCount('pathfind')?`<button data-act="pfnew">새로 찾기 (두루마리 ${invCount('pathfind')}장)</button>`:''}<button data-act="close">닫기 (F)</button>`);}
 function openPathfind(){const out=h=>{const o=$('pfOut');if(o)o.innerHTML=h;};
   const go=()=>{const v=($('pfIn').value||'').trim().replace(/\s+/g,' ');if(!v){$('pfIn').focus();return;}
-    const id=npcTown(v);if(!id){out(`<p class="sub" style="color:#ff9a8a">'${esc(v)}'라는 주민을 찾지 못했어요. 띄어쓰기까지 정확히 적어 주세요. 두루마리는 쓰이지 않았어요.</p>`);return;}
+    const id=pfFind(v);if(!id){out(`<p class="sub" style="color:#ff9a8a">'${esc(v)}'라는 주민을 찾지 못했어요. 띄어쓰기까지 정확히 적어 주세요. 두루마리는 쓰이지 않았어요.</p>`);return;}
     if(invCount('pathfind')<=0){out('<p class="sub">길찾기 두루마리가 가방에 없어요.</p>');return;}
-    const p=S.p;removeItem('pathfind',1);p.used=p.used||{};p.used.pathfind=(p.used.pathfind||0)+1;S.guide={name:v};GUIDE.key='';
+    const p=S.p;removeItem('pathfind',1);p.used=p.used||{};p.used.pathfind=(p.used.pathfind||0)+1;pfStart(v,id);
     const cur=S.map&&TOWNS[S.map.id]?S.map.id:null,R=cur&&townRoute(cur,id),nm=t=>esc(TOWNS[t].name);
     let h=`<div class="item"><div><b>${esc(v)}</b><small>${esc((placeDesc(id)||'').split(' · ').slice(0,2).join(' · '))} · ${nm(id)}</small></div></div>`;
     if(!cur)h+=`<p class="sub">지금은 던전 안이에요. 노란 점선을 따라 던전을 나가면 그 뒤로도 계속 안내해요.</p>`;
     else if(!R)h+=`<p class="sub">지금 있는 곳에서 걸어서 이어지는 길이 없어요. 이동석이나 배를 이용해 ${nm(id)}로 가 주세요.</p>`;
     else if(R.length===1)h+=`<p class="sub">바로 이 마을에 있어요. 노란 점선을 따라가세요.</p>`;
     else h+=`<p class="sub">이동 경로 · ${R.length-1}번 이동</p><p>${R.map(nm).join(' → ')}</p><p class="sub">노란 점선이 다음 출구와 주민 앞까지 안내해요. 국경을 넘으려면 증표가 필요할 수 있어요.</p>`;
-    $('pfBox').hidden=true;out(h);log(`길찾기 두루마리를 펼쳤다. ${v}에게 가는 길을 노란 점선으로 안내한다.`);toast('길 안내',`${v} · ${TOWNS[id].name}`,false);hud();save();};
+    $('pfBox').hidden=true;out(h+'<button data-act="pfquit">길찾기 포기 (선 지우기)</button>');log(`길찾기 두루마리를 펼쳤다. ${v}에게 가는 길을 노란 점선으로 안내한다.`);toast('길 안내',`${v} · ${TOWNS[id].name}`,false);hud();save();};
   panel(`<h2>길찾기 두루마리</h2><div id="pfBox"><p class="sub">찾을 주민의 이름을 정확히 적어 주세요. 길을 찾았을 때만 한 장 쓰여요. (남은 ${invCount('pathfind')}장)</p><div class="btns" style="display:flex;gap:6px"><input id="pfIn" maxlength="20" autocomplete="off" spellcheck="false" style="flex:1;min-width:0;background:#1c1826;color:#f0e6d4;border:1px solid #3a3446;border-radius:4px;padding:10px;font:16px inherit"><button class="primary" id="pfGo" type="button">찾기</button></div></div><div id="pfOut"></div><button data-act="close">닫기 (F)</button>`);
   const i=$('pfIn');i.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();go();}});$('pfGo').onclick=go;setTimeout(()=>i.focus(),50);}
 function guidePath(now){const g=S.guide,p=S.p,m=S.map;if(!g||!m||!m.grid)return null;
   const key=m.id+'|'+S.floor+'|'+p.x+','+p.y;if(GUIDE.key===key&&now-GUIDE.t<600)return GUIDE.path;GUIDE.key=key;GUIDE.t=now;
-  const tid=npcTown(g.name);let goal=null;
+  const tid=g.town||npcTown(g.name);let goal=null;
   if(m.dungeon){goal=(x,y)=>m.grid[y][x]==='<';}
   else if(m.id===tid){const n=(m.npcs||[]).find(q=>q.name===g.name);if(!n)return GUIDE.path=null;if(Math.abs(n.x-p.x)+Math.abs(n.y-p.y)<=1){S.guide=null;toast('도착',g.name,false);return GUIDE.path=null;}goal=(x,y)=>Math.abs(x-n.x)+Math.abs(y-n.y)===0;}
   else{const ch=tid&&townHop(m.id,tid);if(!ch)return GUIDE.path=null;goal=(x,y)=>m.grid[y][x]===ch;}
@@ -5844,6 +5856,9 @@ const ACT={
     try{const bl=new Blob([data],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download=name;document.body.appendChild(a);a.click();a.remove();}catch(e){toast('파일 저장 실패','코드 복사를 이용해 주세요',true);}},
   svpick(){const f=document.createElement('input');f.type='file';f.accept='.txt,.json,text/plain';f.onchange=()=>{const fl=f.files&&f.files[0];if(!fl)return;const r=new FileReader();r.onload=()=>importSave(String(r.result));r.readAsText(fl);};f.click();},
 awback(){openEnhance();},awset(a){if(!S.inForge)return;const [sl,n]=a.split(':'),os=awOthers(sl),gb=(GEAR[S.p[SLOTKEY[sl]]]||{}).boss;if(awClash(n,os,gb)){log('다른 칸과 겹치는 스킬은 고를 수 없다.');return;}gmOf(sl).awSk=n;hud();openAwPick(sl);},
+  pfgo(i){const h=(S.p.pfHist||[])[+i];if(!h)return;const id=pfFind(h.name)||h.town;pfStart(h.name,id);closePanel();toast('길 안내',`${h.name} · ${TOWNS[id]?TOWNS[id].name:''}`,false);log(`${h.name}에게 가는 길을 다시 노란 점선으로 안내한다.`);hud();save();},
+  pfquit(){S.guide=null;GUIDE.key='';GUIDE.path=null;closePanel();toast('길찾기를 그만뒀어요','',false);log('길 안내를 멈췄다.');hud();},
+  pfnew(){closePanel();useKind('pathfind');},
   qguide(n){S.guide={name:n};closePanel();const id=npcTown(n);toast('길 안내',`${n} · ${id?TOWNS[id].name:''}`,false);log(`${n}에게 가는 길을 노란 점선으로 안내한다.`);},
   stup(k){statUp(k,1);},stup5(k){statUp(k,5);},
   close(){closePanel();},
@@ -6001,7 +6016,7 @@ function showItemInfo(s,x,y){let d=$('iinfo');if(!d){d=document.createElement('d
 $('panel').addEventListener('click',e=>{if(performance.now()-(S.panelT||0)<250||performance.now()-(S.dragEnd||0)<120)return;const b=e.target.closest('button');if(b&&!b.disabled&&b.dataset.act)ACT[b.dataset.act](b.dataset.arg);});
 
 /* ---------- save ---------- */
-function snap(){const p=S.p;return {p:{hp:p.hp,maxhp:p.maxhp,atk:p.atk,def:p.def,lv:p.lv,exp:p.exp,gold:p.gold,inv:p.inv,invSize:p.invSize,hot:p.hot,job:p.job||null,job2:p.job2||null,jt:p.jt||0,jb:p.jb||{},expv2:1,hpv2:1,st:stInit(),sp:p.sp||0,wgear:p.wgear||null,agear:p.agear||null,cgear:p.cgear||null,sgear:p.sgear||null,gm:p.gm||{},mercs:p.mercs||[],gv:3,weapon:p.weapon,armor:p.armor,kills:p.kills,turns:p.turns,deaths:p.deaths||0,bossN:p.bossN,enhTry:p.enhTry||0,enhFail:p.enhFail||0,playMs:Math.round(p.playMs||0),worn:p.worn||null,used:p.used||{},goldSpent:p.goldSpent||0,pid:p.pid||null,psec:p.psec||null,pname:p.pname||'',lastBoss:p.lastBoss||'',giftsUsed:p.giftsUsed||[]},stage:S.stage,flags:S.flags};}
+function snap(){const p=S.p;return {p:{hp:p.hp,maxhp:p.maxhp,atk:p.atk,def:p.def,lv:p.lv,exp:p.exp,gold:p.gold,inv:p.inv,invSize:p.invSize,hot:p.hot,job:p.job||null,job2:p.job2||null,jt:p.jt||0,jb:p.jb||{},expv2:1,hpv2:1,st:stInit(),sp:p.sp||0,wgear:p.wgear||null,agear:p.agear||null,cgear:p.cgear||null,sgear:p.sgear||null,gm:p.gm||{},mercs:p.mercs||[],gv:3,weapon:p.weapon,armor:p.armor,kills:p.kills,turns:p.turns,deaths:p.deaths||0,bossN:p.bossN,enhTry:p.enhTry||0,enhFail:p.enhFail||0,playMs:Math.round(p.playMs||0),worn:p.worn||null,used:p.used||{},goldSpent:p.goldSpent||0,pid:p.pid||null,psec:p.psec||null,pname:p.pname||'',lastBoss:p.lastBoss||'',giftsUsed:p.giftsUsed||[],pfHist:p.pfHist||[]},stage:S.stage,flags:S.flags};}
 function save(){if(S.map&&S.map.war)return;try{localStorage.setItem(KEY,JSON.stringify(snap()));}catch(e){}try{repSync();}catch(e){}}
 function loadSave(){try{const s=localStorage.getItem(KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
 function expMigrate(p){if(p.expv2)return;p.expv2=1;if(!p.lv||p.lv<=1)return;let T=p.exp||0;for(let l=1;l<p.lv;l++)T+=needOld(l);
@@ -6029,7 +6044,7 @@ function goalText(){const f=S.flags;switch(S.stage){
   case 4:return f.e4?'목표 · 9층 연구소 최심부의 모르간 처치':'목표 · 촌장에게 로완의 이야기 전하기';
   default:return S.flags.k2pass?'':'다음 목표 · 실바렌 동쪽 안개 협곡을 지나 바다 왕국 마르시아로';}}
 function wornTrack(){const p=S.p;p.worn=p.worn||{w:[],a:[],c:[],s:[]};for(const sl of ['w','a','c','s']){const k=p[SLOTKEY[sl]];p.worn[sl]=p.worn[sl]||[];if(k&&!p.worn[sl].includes(k))p.worn[sl].push(k);}}
-function hud(){try{if(S.mode!=='title')wornTrack();}catch(e){}
+function hud(){try{pfBtn();}catch(e){}try{if(S.mode!=='title')wornTrack();}catch(e){}
   const p=S.p,m=S.map;
   $('loc').textContent=m?(m.dungeon?dlabel(S.dun,S.floor):m.name):'';
   $('lv').textContent=`Lv ${p.lv}`;$('pjob').textContent=jobName();$('pxp').textContent=`다음 레벨까지 ${Math.max(0,need(p.lv)-p.exp)} EXP`;{const u=heroBust();if($('portimg').src!==u)$('portimg').src=u;}
@@ -6645,6 +6660,7 @@ cv.addEventListener('click',()=>{if(S.mode==='dlg')advance();});
 $('bBag').addEventListener('click',()=>{if(S.mode==='play')openBag();});
 $('bMerc').addEventListener('click',()=>{if(S.mode==='play')openMercMgr(null,'merc');else if(S.mwin)closePanel();});
 $('bGolem').addEventListener('click',()=>{if(S.mode==='play')openMercMgr(null,'golem');else if(S.mwin)closePanel();});
+$('bPath').addEventListener('click',()=>{if(S.mode==='play')openPathHist();else if(S.panelKey==='길찾기')closePanel();});
 $('bQuest').addEventListener('click',()=>{if(S.mode==='play')openQuestLog();else if(S.qwin)closePanel();});
 $('bSnd').addEventListener('click',()=>{AU.init();AU.setOn(!AU.on);});$('bSnd').textContent=AU.on?'소리 켬':'소리 끔';$('bSave').addEventListener('click',()=>{if(S.mode==='play')openSaveIO();});
 $('bKeys').addEventListener('click',()=>{if(S.mode==='play'){S.rebind=null;openKeys();}});
