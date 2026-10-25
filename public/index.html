@@ -3679,7 +3679,7 @@ function loadFloor(f,from,dun){dun=dun||'abyss';const D=DUNS[dun];
   S.dun=dun;S.floor=f;if(dun==='abyss'){S.flags.deep=Math.max(S.flags.deep||0,f);if(f>=4)S.flags.cp4=true;if(f>=7)S.flags.cp7=true;}if(dun==='deep')S.flags.deepx=Math.max(S.flags.deepx||0,f);S.flags['deep_'+dun]=Math.max(S.flags['deep_'+dun]||0,f);
   const key=dun+':'+f;let d=S.floorCache[key];const fresh=!d;
   if(!d){const g=genFloor(f,dun);d={map:g.map,ents:g.ents,items:g.items};S.floorCache[key]=d;}
-  S.map=d.map;S.ents=d.ents;S.items=d.items;S.parts=[];S.slashes=[];S.claws=[];S.pending=[];S.shots=[];S.traps=[];S.tele=[];
+  S.map=d.map;S.ents=d.ents;S.items=d.items;bossHide();S.parts=[];S.slashes=[];S.claws=[];S.pending=[];S.shots=[];S.traps=[];S.tele=[];
   const at=(from==='below'&&findTile(d.map,'>'))||findTile(d.map,'<');
   placePlayer(at[0],at[1]);S.allies=[];spawnMercs();if(D.route&&f===1&&!(S.map.npcs||[]).some(n=>n.guard))try{routeGuards(dun);}catch(e){}
   const now=performance.now();for(const e of S.ents)e.next=Math.max(e.next||0,now+900);
@@ -4680,8 +4680,15 @@ function checkLevel(){const p=S.p;while(p.exp>=need(p.lv)){if(p.lv===9&&!p.job)s
   fx(p.x,p.y,'LEVEL UP','#8fd3ff',true);for(let i=0;i<28;i++)part(p.x*TS+2+Math.random()*12,p.y*TS+16-Math.random()*6,(Math.random()-.5)*.3,-.6-Math.random()*.9,i%3?'#ffe08a':'#ffffff',600+Math.random()*500,-.002);
   log(`레벨 ${p.lv}! 스탯 포인트 3을 얻었다. 초상화를 눌러 내 정보 창에서 올릴 수 있다.`);}}
 function inBossRoom(x,y){const r=S.map.bossRect;return !!r&&x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h;}
-function bossSeal(){const m=S.map,p=S.p;if(!m.boss||!m.bossRect||m.bossDead||!S.ents.some(e=>e.boss))return;
-  if(!m.sealed){if(!inBossRoom(p.x,p.y))return;m.sealed=true;m.sealLeft=m.bossDoors.slice();S.shake=6;S.flashW=.25;
+/* 보스는 플레이어가 보스방에 들어와야 나타난다: 층에 들어오면 보스를 숨겨 두고, 방에 발을 들이는 순간 소환한다 */
+function bossHide(){const m=S.map;if(!m||!m.dungeon||!m.boss||!m.bossRect||m.sealed||m.bossDead)return;const B=S.ents.filter(e=>e.boss);if(!B.length)return;
+  m.pendBoss=(m.pendBoss||[]).concat(B);S.ents=S.ents.filter(e=>!e.boss);if(S.floorCache)for(const k in S.floorCache)if(S.floorCache[k].map===m)S.floorCache[k].ents=S.ents;}
+function bossSummon(){const m=S.map,p=S.p;if(!m.pendBoss||!m.pendBoss.length)return;const now=performance.now();
+  for(const e of m.pendBoss){let x=e.x,y=e.y;if(!free(x,y)||(p.x===x&&p.y===y)){const sp=nearFree(x,y,1)[0];if(sp){x=sp[0];y=sp[1];}}e.x=x;e.y=y;if('rx' in e){e.rx=x;e.ry=y;}e.next=now+1200;e.skNext=now+3200;e.lastIn=[x,y];S.ents.push(e);
+    try{burst(x*TS+8,y*TS+9,'#ff4a3a',26);burst(x*TS+8,y*TS+9,'#ffd36b',14);}catch(err){}}
+  const nm=m.pendBoss.map(e=>e.name).join(', ');m.pendBoss=[];S.shake=12;S.flashW=.45;log(`${nm}이(가) 모습을 드러냈다!`);}
+function bossSeal(){const m=S.map,p=S.p;if(!m.boss||!m.bossRect||m.bossDead||!(S.ents.some(e=>e.boss)||(m.pendBoss&&m.pendBoss.length)))return;
+  if(!m.sealed){if(!inBossRoom(p.x,p.y))return;bossSummon();m.sealed=true;m.sealLeft=m.bossDoors.slice();S.shake=6;S.flashW=.25;
     log(`${m.bossRoom||'보스의 방'}의 입구가 결계로 봉인되었다! 보스를 쓰러뜨리기 전에는 나갈 수 없다.`);let n=0;for(const a of S.allies)if(!a.looter&&!inBossRoom(a.x,a.y)&&allyIntoRoom(a))n++;if(n)log(`용병 ${n}명이 결계가 닫히기 전에 뒤따라 들어왔다.`);}
   m.sealLeft=(m.sealLeft||[]).filter(([x,y])=>{if((p.x===x&&p.y===y)||S.ents.some(e=>e.x===x&&e.y===y))return true;m.grid[y][x]='G';
     for(let i=0;i<8;i++)part(x*TS+2+Math.random()*12,y*TS+14,(Math.random()-.5)*.3,-.5-Math.random()*.6,i%2?'#ff9a3c':'#ffe08a',500,0);return false;});}
@@ -6493,7 +6500,7 @@ const myName=()=>S.p.pname||('모험가-'+myPid().slice(0,4));
 function lastBossName(){const p=S.p;if(p.lastBoss)return p.lastBoss;let nm='';for(const r of TOK_ORDER){const f=REALM_FIN[r];if(f&&S.flags['fk_'+f]&&MON[f])nm=MON[f].name;}return nm||'아직 없음';}
 function gearInfo(sl){const p=S.p,k=p[SLOTKEY[sl]];if(!k)return null;const m=gmOf(sl);return {k,n:gearNm(k),e:m.e||0,aw:m.aw?1:0};}
 function reportObj(withSave){const p=S.p;let A=0,D=0;try{A=atk();D=def();}catch(e){}
-  const o={v:1,pid:myPid(),uid:NET.uid||null,name:myName(),lv:p.lv,title:($('pjob')||{}).textContent||'',town:(S.map&&!S.map.war&&S.map.name)||'',lastBoss:lastBossName(),
+  const o={v:1,pid:myPid(),uid:NET.uid||null,name:myName(),lv:p.lv,title:($('pjob')||{}).textContent||'',town:(S.map&&!S.map.war&&(($('loc')||{}).textContent||S.map.name))||'',bw:bwCount(),lastBoss:lastBossName(),
     fin:TOK_ORDER.filter(r=>REALM_FIN[r]&&S.flags['fk_'+REALM_FIN[r]]).length,gear:{w:gearInfo('w'),a:gearInfo('a'),s:gearInfo('s'),c:gearInfo('c')},
     atk:A,def:D,hp:p.maxhp,gold:p.gold,st:p.st||null,playMs:Math.round(p.playMs||0),deaths:p.deaths||0,t:Date.now()};
   if(withSave){o.save=snap();if(o.save&&o.save.p)delete o.save.p.psec;}return o;}
@@ -6513,11 +6520,16 @@ const srvPost=(u,o)=>fetch(u,{method:'POST',headers:{'Content-Type':'application
 (async()=>{if(!/^https?:$/.test(location.protocol)||/claude\.ai|claudeusercontent/.test(location.host))return;try{const r=await fetch('/api/ping',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.ok)return;SRV.on=true;mailBadge();$('bMail').onclick=()=>{if(S.mode==='play'){mailPull();openMail();}};setInterval(srvTick,30000);setTimeout(srvTick,4000);setInterval(liveTick,1000);verCheck();setInterval(verCheck,60000);}catch(e){}})();
 /* ---------- 실시간 상태: 몇 초마다 지금 상태를 서버에 보낸다. 관리자가 화면 보기를 누르면 1초마다 게임 화면 사진도 보내고 위에 '관리자가 보는 중'을 띄운다 ---------- */
 const LIVEC={watch:false,busy:false,t:0,cv:null};
-function liveShot(){try{const W=480,H=Math.round(W*cv.height/cv.width);let c=LIVEC.cv;if(!c){c=LIVEC.cv=document.createElement('canvas');c.width=W;c.height=H;}const g=c.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(cv,0,0,W,H);return c.toDataURL('image/jpeg',.6);}catch(e){return null;}}
+function liveShot(){try{const W=480,H=Math.round(W*cv.height/cv.width);let c=LIVEC.cv;if(!c){c=LIVEC.cv=document.createElement('canvas');c.width=W;c.height=H;}const g=c.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(cv,0,0,W,H);
+  const p=S.p;if(p){const hp=Math.max(0,Math.round(p.hp)),mx=p.maxhp||1,r=Math.max(0,Math.min(1,hp/mx));g.fillStyle='rgba(10,8,14,.72)';g.fillRect(0,0,W,22);
+    g.fillStyle='#3a1418';g.fillRect(6,6,150,10);g.fillStyle=r>.5?'#d84a4a':r>.25?'#e8902a':'#ff3030';g.fillRect(6,6,Math.round(150*r),10);g.strokeStyle='#000';g.strokeRect(6.5,6.5,150,10);
+    g.font='bold 12px sans-serif';g.textBaseline='middle';g.fillStyle='#fff';g.fillText(`HP ${hp} / ${mx}`,164,11);g.fillStyle='#d9ae5c';const t=`${($('loc')||{}).textContent||''} · Lv ${p.lv}`;g.fillText(t,W-6-g.measureText(t).width,11);}
+  return c.toDataURL('image/jpeg',.6);}catch(e){return null;}}
 async function liveTick(){if(!SRV.on||S.mode==='title'||!S.p||LIVEC.busy)return;const now=Date.now();if(now-LIVEC.t<(LIVEC.watch?900:3000))return;
   const p=S.p;LIVEC.busy=true;LIVEC.t=now;
   try{const st={loc:($('loc')||{}).textContent||'',map:S.map?S.map.id:null,dun:S.dun||null,floor:S.floor||0,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,lv:p.lv,gold:p.gold,job:($('pjob')||{}).textContent||'',mode:S.mode,panel:S.panelKey||null,
-      foes:(S.ents||[]).filter(e=>e.aware&&e.hp>0).slice(0,5).map(e=>`${e.name} ${Math.max(0,Math.round(e.hp))}/${e.maxhp}`),log:(S.log||[]).slice(-4).map(x=>String(x).slice(0,120)),guide:S.guide?S.guide.name:null,hidden:document.hidden?1:0};
+      foes:(S.ents||[]).filter(e=>e.aware&&e.hp>0).slice(0,5).map(e=>`${e.name} ${Math.max(0,Math.round(e.hp))}/${e.maxhp}`),log:(S.log||[]).slice(-4).map(x=>String(x).slice(0,120)),guide:S.guide?S.guide.name:null,hidden:document.hidden?1:0,bw:bwCount(),gold:p.gold,
+      win:($('panel')&&!$('panel').hidden)?{title:S.panelKey||'',text:($('panel').innerText||'').replace(/\n{3,}/g,'\n\n').slice(0,3000)}:null,dlg:($('dlg')&&!$('dlg').hidden)?{n:($('dn')||{}).textContent||'',t:($('dt')||{}).textContent||''}:null};
     const o={pid:myPid(),psec:myPsec(),st};if(LIVEC.watch&&!document.hidden){const sh=liveShot();if(sh)o.shot=sh;}
     const j=await srvPost('/api/live',o);const w=!!(j&&j.watch);if(w!==LIVEC.watch){LIVEC.watch=w;const t=$('watchTag');if(t)t.hidden=!w;}}catch(e){}LIVEC.busy=false;}
 /* ---------- 새 버전 알림: 서버의 게임 버전이 바뀌면 아래에 알림을 띄우고, 누르면 저장한 뒤 새로고침 ---------- */
