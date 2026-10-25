@@ -248,6 +248,7 @@ body.incine #party,body.incine #log,body.incine #skrow,body.incine #bar9,body.in
 #cine .credits.happy small{color:#ffd36b}#cine .credits.happy h1{color:#ffd36b}#cine .credits.happy h3{color:#ffe7a8}
 </style>
 
+<div id="watchTag" hidden style="position:fixed;top:3px;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(20,16,26,.82);color:#ffd36b;border:1px solid #6a5530;border-radius:10px;padding:1px 9px;font-size:11px;line-height:16px;pointer-events:none;white-space:nowrap">관리자가 보는 중</div>
 <div class="wrap">
   <header class="hud">
     <div class="hudl">
@@ -6508,7 +6509,16 @@ function codeRead(txt,pre){txt=(txt||'').trim().replace(/\s/g,'');const m=txt.ma
 const SRV={on:false,timer:null,last:'',lastT:0,ok:0,asked:0};
 function myPsec(){const p=S.p;if(!p.psec)p.psec=(Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2)).slice(0,20);return p.psec;}
 const srvPost=(u,o)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),cache:'no-store'}).then(r=>r.json());
-(async()=>{if(!/^https?:$/.test(location.protocol)||/claude\.ai|claudeusercontent/.test(location.host))return;try{const r=await fetch('/api/ping',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.ok)return;SRV.on=true;mailBadge();$('bMail').onclick=()=>{if(S.mode==='play'){mailPull();openMail();}};setInterval(srvTick,30000);setTimeout(srvTick,4000);}catch(e){}})();
+(async()=>{if(!/^https?:$/.test(location.protocol)||/claude\.ai|claudeusercontent/.test(location.host))return;try{const r=await fetch('/api/ping',{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.ok)return;SRV.on=true;mailBadge();$('bMail').onclick=()=>{if(S.mode==='play'){mailPull();openMail();}};setInterval(srvTick,30000);setTimeout(srvTick,4000);setInterval(liveTick,1000);}catch(e){}})();
+/* ---------- 실시간 상태: 몇 초마다 지금 상태를 서버에 보낸다. 관리자가 화면 보기를 누르면 1초마다 게임 화면 사진도 보내고 위에 '관리자가 보는 중'을 띄운다 ---------- */
+const LIVEC={watch:false,busy:false,t:0,cv:null};
+function liveShot(){try{const W=480,H=Math.round(W*cv.height/cv.width);let c=LIVEC.cv;if(!c){c=LIVEC.cv=document.createElement('canvas');c.width=W;c.height=H;}const g=c.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(cv,0,0,W,H);return c.toDataURL('image/jpeg',.6);}catch(e){return null;}}
+async function liveTick(){if(!SRV.on||S.mode==='title'||!S.p||LIVEC.busy)return;const now=Date.now();if(now-LIVEC.t<(LIVEC.watch?900:3000))return;
+  const p=S.p;LIVEC.busy=true;LIVEC.t=now;
+  try{const st={loc:($('loc')||{}).textContent||'',map:S.map?S.map.id:null,dun:S.dun||null,floor:S.floor||0,x:p.x,y:p.y,hp:p.hp,maxhp:p.maxhp,lv:p.lv,gold:p.gold,job:($('pjob')||{}).textContent||'',mode:S.mode,panel:S.panelKey||null,
+      foes:(S.ents||[]).filter(e=>e.aware&&e.hp>0).slice(0,5).map(e=>`${e.name} ${Math.max(0,Math.round(e.hp))}/${e.maxhp}`),log:(S.log||[]).slice(-4).map(x=>String(x).slice(0,120)),guide:S.guide?S.guide.name:null,hidden:document.hidden?1:0};
+    const o={pid:myPid(),psec:myPsec(),st};if(LIVEC.watch&&!document.hidden){const sh=liveShot();if(sh)o.shot=sh;}
+    const j=await srvPost('/api/live',o);const w=!!(j&&j.watch);if(w!==LIVEC.watch){LIVEC.watch=w;const t=$('watchTag');if(t)t.hidden=!w;}}catch(e){}LIVEC.busy=false;}
 async function srvTick(){if(!SRV.on||S.mode==='title'||!S.p)return;
   mailPull();
   try{const j=await srvPost('/api/gifts',{pid:myPid(),psec:myPsec()});for(const g of (j.gifts||[])){const used=(S.p.giftsUsed||[]).includes(g.gid);if(used||giftGive(g,true)){save();await srvPost('/api/claim',{pid:myPid(),psec:myPsec(),gid:g.gid});}}}catch(e){}}

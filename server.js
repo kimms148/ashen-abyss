@@ -65,6 +65,7 @@ function fail(ip) { const f = FAILS.get(ip); if (!f || Date.now() - f.t > 600000
 const rid = () => Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
 const clean = (t, n) => String(t || '').replace(/[\u0000-\u0009\u000b-\u001f]/g, '').trim().slice(0, n);
 const SENT = new Map();
+const LIVE = new Map(), WATCH = new Map();
 function playerOk(pid, psec) { const p = DB.players[pid]; return p && safeEq(p.psec, psec); }
 
 const server = http.createServer(async (req, res) => {
@@ -121,8 +122,18 @@ const server = http.createServer(async (req, res) => {
       changed(); return send(res, 200, { ok: 1 });
     }
     /* 관리자 */
+    /* 실시간 상태: 플레이어가 몇 초마다 지금 상태를 보낸다. 관리자가 화면 보기를 누른 플레이어만 화면 사진을 같이 보낸다 (메모리에만 두고 저장하지 않음) */
+    if (P === '/api/live' && req.method === 'POST') {
+      const b = await body(req); if (!playerOk(b.pid, b.psec)) return send(res, 200, { watch: 0 });
+      const st = b.st && typeof b.st === 'object' ? b.st : {}; const L = LIVE.get(b.pid) || {}; L.st = st; L.t = Date.now();
+      if (typeof b.shot === 'string' && b.shot.startsWith('data:image/') && b.shot.length < 900000) { L.shot = b.shot; L.shotT = Date.now(); }
+      LIVE.set(b.pid, L); const w = WATCH.get(b.pid) || 0; return send(res, 200, { watch: Date.now() - w < 8000 ? 1 : 0 });
+    }
     if (P.startsWith('/api/admin/')) {
       if (!isAdmin(req)) return send(res, 401, { error: 'admin' });
+      if (P === '/api/admin/live') { const now = Date.now(), out = []; for (const [pid, L] of LIVE) { if (now - L.t > 120000) { LIVE.delete(pid); continue; } const r = (DB.players[pid] || {}).report || {}; out.push({ pid, name: r.name || r.pname || pid, t: L.t, st: L.st, watched: now - (WATCH.get(pid) || 0) < 8000 }); } return send(res, 200, { live: out }); }
+      if (P === '/api/admin/live/shot') { const pid = u.searchParams.get('pid') || ''; WATCH.set(pid, Date.now()); const L = LIVE.get(pid) || {}; return send(res, 200, { shot: L.shot || null, shotT: L.shotT || 0, t: L.t || 0, st: L.st || null }); }
+      if (P === '/api/admin/live/stop' && req.method === 'POST') { const b = await body(req); WATCH.delete(b.pid); const L = LIVE.get(b.pid); if (L) { delete L.shot; delete L.shotT; } return send(res, 200, { ok: 1 }); }
       /* 관리자용 도감: 히든까지 모두 담긴 파일이라 public 밖(private)에 두고 관리자 열쇠가 있을 때만 내준다 */
       if (P === '/api/admin/dex') { try { const t = fs.readFileSync(path.join(__dirname, 'private', 'dex-admin.html'), 'utf8'); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(t); } catch (e) { return send(res, 404, { error: 'nodex' }); } }
       if (P === '/api/admin/players') return send(res, 200, { players: Object.values(DB.players).map(p => p.report), codes: Object.entries(DB.codes).map(([k, c]) => ({ code: fmtCode(k), to: c.to, what: c.what, t: c.t, used: c.used || 0 })).sort((a, b) => b.t - a.t).slice(0, 200) });
