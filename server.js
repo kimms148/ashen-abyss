@@ -123,6 +123,8 @@ const server = http.createServer(async (req, res) => {
     /* 관리자 */
     if (P.startsWith('/api/admin/')) {
       if (!isAdmin(req)) return send(res, 401, { error: 'admin' });
+      /* 관리자용 도감: 히든까지 모두 담긴 파일이라 public 밖(private)에 두고 관리자 열쇠가 있을 때만 내준다 */
+      if (P === '/api/admin/dex') { try { const t = fs.readFileSync(path.join(__dirname, 'private', 'dex-admin.html'), 'utf8'); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(t); } catch (e) { return send(res, 404, { error: 'nodex' }); } }
       if (P === '/api/admin/players') return send(res, 200, { players: Object.values(DB.players).map(p => p.report), codes: Object.entries(DB.codes).map(([k, c]) => ({ code: fmtCode(k), to: c.to, what: c.what, t: c.t, used: c.used || 0 })).sort((a, b) => b.t - a.t).slice(0, 200) });
       if (P === '/api/admin/gift' && req.method === 'POST') {
         const b = await body(req), g = b.gift || {};
@@ -147,7 +149,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, { error: 'none' });
     }
     /* 파일 */
-    let f = P === '/' ? '/index.html' : P === '/admin' ? '/admin.html' : P === '/dex' ? '/dex.html' : P;
+    let f = P === '/' ? '/index.html' : P === '/admin' ? '/admin.html' : P === '/dex' ? '/dex.html' : P === '/admin/dex' ? '/admin-dex.html' : P;
     f = path.normalize(decodeURIComponent(f)).replace(/^([/\\])+/, '');
     const fp = path.join(PUB, f); if (!fp.startsWith(PUB)) return send(res, 403, 'no');
     fs.readFile(fp, (e, d) => { if (e) return send(res, 404, '없는 페이지예요'); res.writeHead(200, { 'Content-Type': MIME[path.extname(fp)] || 'application/octet-stream', 'Cache-Control': 'no-cache' }); res.end(d); });

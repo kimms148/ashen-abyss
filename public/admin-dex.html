@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>잿빛 심연 도감 (관리자)</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#16141a;color:#d8d2c4;font-family:system-ui,sans-serif;text-align:center;padding:16px}a{color:#e0b860}</style>
+</head><body><div id="m"><p>관리자 도감을 불러오는 중이에요…</p><p>서버가 잠들어 있으면 30초쯤 걸릴 수 있어요.</p></div>
+<script>
+(async()=>{const m=document.getElementById('m');let key='';try{key=JSON.parse(localStorage.getItem('ashen_abyss_save_v1_akey')||'""')||'';}catch(e){}
+  if(!key){m.innerHTML='<p>관리자 열쇠가 없어요.</p><p><a href="/admin">관리자 페이지</a>에서 열쇠를 먼저 넣어 주세요.</p>';return;}
+  try{const r=await fetch('/api/admin/dex',{headers:{'x-admin-key':key},cache:'no-store'});
+    if(r.status===401){m.innerHTML='<p>관리자 열쇠가 맞지 않아요.</p><p><a href="/admin">관리자 페이지</a>에서 다시 넣어 주세요.</p>';return;}
+    if(!r.ok)throw new Error(r.status);const t=await r.text();document.open();document.write(t);document.close();
+  }catch(e){m.innerHTML='<p>불러오지 못했어요. 잠시 뒤 새로고침해 주세요.</p>';}})();
+</script></body></html>
