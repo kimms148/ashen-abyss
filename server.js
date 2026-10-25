@@ -66,6 +66,7 @@ const rid = () => Date.now().toString(36) + crypto.randomBytes(4).toString('hex'
 const clean = (t, n) => String(t || '').replace(/[\u0000-\u0009\u000b-\u001f]/g, '').trim().slice(0, n);
 const SENT = new Map();
 const LIVE = new Map(), WATCH = new Map();
+let GAME_VER = ''; try { GAME_VER = crypto.createHash('sha1').update(fs.readFileSync(path.join(PUB, 'index.html'))).digest('hex').slice(0, 12); } catch (e) {}
 function playerOk(pid, psec) { const p = DB.players[pid]; return p && safeEq(p.psec, psec); }
 
 const server = http.createServer(async (req, res) => {
@@ -73,6 +74,8 @@ const server = http.createServer(async (req, res) => {
   try {
     if (P === '/ping') return send(res, 200, 'ok');
     if (P === '/api/ping') return send(res, 200, { ok: 1, admin: !!ADMIN_KEY });
+    /* 게임 버전: 서버가 켜질 때 게임 파일 내용으로 만든 값. 켜져 있는 게임이 이 값이 바뀐 걸 보면 새 버전 알림을 띄운다 */
+    if (P === '/api/version') return send(res, 200, { v: GAME_VER });
     /* 참여자: 진행 보고 (처음 보고할 때 비밀 열쇠가 등록되고, 그 뒤로는 같은 열쇠로만 고칠 수 있다) */
     if (P === '/api/report' && req.method === 'POST') {
       const b = await body(req); const r = b.report || {};
