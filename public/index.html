@@ -4347,7 +4347,15 @@ function aiTick(now){
     for(const [mx,my] of cands){if(free(e.x+mx,e.y+my)){e.x+=mx;e.y+=my;break;}}
     const ti=S.traps.findIndex(t=>t.x===e.x&&t.y===e.y);if(ti>=0){const tr=S.traps.splice(ti,1)[0];e.stunUntil=now+2000;attackEnemy(e,0,0,tr.mult||1.5,0);fx(e.x,e.y,'덫!','#ffd36b',true);if(S.mode==='dead')return;}
   }
+  bossLeash();
 }
+/* 보스는 보스방 밖으로 나오지 않는다: 던전 보스가 방 밖으로 한 칸이라도 나가면 방 안 마지막 자리로 되돌린다 */
+function bossLeash(){const m=S.map;if(!m||!m.dungeon||!m.bossRect)return;
+  for(const e of S.ents){if(!e.boss||e.hp<=0)continue;
+    if(inBossRoom(e.x,e.y)){e.lastIn=[e.x,e.y];continue;}
+    let t=e.lastIn&&!S.ents.some(o=>o!==e&&o.x===e.lastIn[0]&&o.y===e.lastIn[1])&&!(S.p.x===e.lastIn[0]&&S.p.y===e.lastIn[1])?e.lastIn:null;
+    if(!t){const r=m.bossRect;let best=null,bd=1e9;for(let y=r.y;y<r.y+r.h;y++)for(let x=r.x;x<r.x+r.w;x++){if(SOLID.has(m.grid[y][x])||S.ents.some(o=>o!==e&&o.x===x&&o.y===y)||(S.p.x===x&&S.p.y===y))continue;const d=Math.abs(x-e.x)+Math.abs(y-e.y);if(d<bd){bd=d;best=[x,y];}}t=best;}
+    if(t){e.x=t[0];e.y=t[1];e.lastIn=t;}}}
 function clearLine(x0,y0,x1,y1){const sx=Math.sign(x1-x0),sy=Math.sign(y1-y0);let x=x0+sx,y=y0+sy;while(x!==x1||y!==y1){if(SOLID.has(tile(x,y)))return false;x+=sx;y+=sy;}return true;}
 const SHOT={porb:{c:'#7ff0c8'},rock:{c:'#a8a2b0'},arrow:{c:'#e0d8c8'},orb:{c:'#c080ff'},knife:{c:'#e8eef6'},parrow:{c:'#e0d8c8'},flask:{c:'#8af060'}};
 function fireEnemy(e,dx,dy){const R=e.ranged;e.bx=dx*3;e.by=dy*3;
