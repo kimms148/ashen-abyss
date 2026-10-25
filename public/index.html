@@ -794,6 +794,7 @@ const DEF={
   gold:{rows:["","","","","","","","","","",".......YY.......",".....YYyYY......","....YyYYYyYY....","...YYYYyYYYYy..."],pal:{Y:'#e8bc50',y:'#b88a30'}},
   chest:{rows:["","","","","","","....bbbbbbbb....","...bBBBBBBBBb...","...BBBBBBBBBB...","...IIIIIIIIII...","...BBBBYYBBBB...","...BBBBYYBBBB...","...BBBBBBBBBB...","...bbbbbbbbbb..."],pal:{b:'#4e3018',B:'#7a4c26',I:'#5a5a64',Y:'#e2b44c'}},
   scroll:{rows:["","","","","","","","....PPPPPPPP....","...rPPPPPPPPr...","...rPkPPkPPPr...","...rPPPPkPPPr...","...rPPkPPPPPr...","....PPPPPPPP....",""],pal:{P:'#ddd0aa',r:'#8a5a32',k:'#6a4a3a'}},
+  pfscroll:{rows:["","","","","","","","....PPPPPPPP....","...gPPPYPPPPg...","...gPPYYYPPPg...","...gPPPYPPPPg...","...gPPPkPPPPg...","....PPPPPPPP....",""],pal:{P:'#f0e2b0',g:'#3a8a5a',Y:'#e0a030',k:'#6a5a3a'}},
   rscroll:{rows:["","","","","","","","....PPPPPPPP....","...bPPPPPPPPb...","...bPkkPPkkPb...","...bPPPPPPPPb...","...bPPkkkPPPb...","....PPPPPPPP....",""],pal:{P:'#c8d8f0',b:'#3a5aa8',k:'#4a5a8a'}},
   bomb:{rows:["","","","","",".........ff.....","........f.......","........K.......","......KKKKK.....",".....KWKKKKK....",".....KKKKKKK....",".....KKKKKKK....","......KKKKK.....","................"],pal:{K:'#2a2630',W:'#7a7488',f:'#ffb040'}},
   stone_on:{rows:[
@@ -2238,6 +2239,7 @@ const ITEMS=[
   {k:'topots',name:'최상급 물약',desc:'최대 체력의 40% 회복',price:1500,icon:'toppot'},
   {k:'regens',name:'재생의 물약',desc:'10초 동안 매초 최대 체력의 6%씩 회복 (모두 60%)',price:4000,icon:'regenpot'},
   {k:'guardpots',name:'수호의 물약',desc:'10초 동안 최대 체력의 30%만큼 피해를 막는 보호막',price:3000,icon:'guardpot'},
+  {k:'pathfind',name:'길찾기 두루마리',desc:'주민 이름을 정확히 적으면 그 주민까지 가는 길을 알려 줌 (찾았을 때만 쓰임)',price:100000,icon:'pfscroll'},
 ];
 const SHOP=ITEMS;
 const STACK=100,BAG_STEPS=[5,9,14,20,28];
@@ -4146,6 +4148,23 @@ function townGraph(){if(TGRAPH)return TGRAPH;TGRAPH={};for(const id in TOWNS){co
 function townHop(from,to){const G=townGraph();if(!G[from])return null;const prev={[from]:null},q=[from];while(q.length){const c=q.shift();if(c===to)break;for(const ch in G[c]){const n=G[c][ch];if(!(n in prev)&&TOWNS[n]){prev[n]=[c,ch];q.push(n);}}}
   if(!(to in prev))return null;let c=to,ch=null;while(prev[c]&&prev[c][0]!==from)c=prev[c][0];return prev[c]?prev[c][1]:null;}
 const GUIDE={t:0,key:'',path:null};
+/* ---------- 길찾기 두루마리: 주민 이름을 정확히 적으면 그 주민까지의 경로를 알려 주고 노란 점선으로 안내한다. 찾았을 때만 한 장 쓰인다 ---------- */
+function townRoute(from,to){const G=townGraph();if(!G[from])return null;const prev={[from]:null},q=[from];while(q.length){const c=q.shift();if(c===to)break;for(const ch in G[c]){const n=G[c][ch];if(!(n in prev)&&TOWNS[n]){prev[n]=c;q.push(n);}}}
+  if(!(to in prev))return null;const r=[];for(let c=to;c!=null;c=prev[c])r.push(c);return r.reverse();}
+function openPathfind(){const out=h=>{const o=$('pfOut');if(o)o.innerHTML=h;};
+  const go=()=>{const v=($('pfIn').value||'').trim().replace(/\s+/g,' ');if(!v){$('pfIn').focus();return;}
+    const id=npcTown(v);if(!id){out(`<p class="sub" style="color:#ff9a8a">'${esc(v)}'라는 주민을 찾지 못했어요. 띄어쓰기까지 정확히 적어 주세요. 두루마리는 쓰이지 않았어요.</p>`);return;}
+    if(invCount('pathfind')<=0){out('<p class="sub">길찾기 두루마리가 가방에 없어요.</p>');return;}
+    const p=S.p;removeItem('pathfind',1);p.used=p.used||{};p.used.pathfind=(p.used.pathfind||0)+1;S.guide={name:v};GUIDE.key='';
+    const cur=S.map&&TOWNS[S.map.id]?S.map.id:null,R=cur&&townRoute(cur,id),nm=t=>esc(TOWNS[t].name);
+    let h=`<div class="item"><div><b>${esc(v)}</b><small>${esc((placeDesc(id)||'').split(' · ').slice(0,2).join(' · '))} · ${nm(id)}</small></div></div>`;
+    if(!cur)h+=`<p class="sub">지금은 던전 안이에요. 노란 점선을 따라 던전을 나가면 그 뒤로도 계속 안내해요.</p>`;
+    else if(!R)h+=`<p class="sub">지금 있는 곳에서 걸어서 이어지는 길이 없어요. 이동석이나 배를 이용해 ${nm(id)}로 가 주세요.</p>`;
+    else if(R.length===1)h+=`<p class="sub">바로 이 마을에 있어요. 노란 점선을 따라가세요.</p>`;
+    else h+=`<p class="sub">이동 경로 · ${R.length-1}번 이동</p><p>${R.map(nm).join(' → ')}</p><p class="sub">노란 점선이 다음 출구와 주민 앞까지 안내해요. 국경을 넘으려면 증표가 필요할 수 있어요.</p>`;
+    $('pfBox').hidden=true;out(h);log(`길찾기 두루마리를 펼쳤다. ${v}에게 가는 길을 노란 점선으로 안내한다.`);toast('길 안내',`${v} · ${TOWNS[id].name}`,false);hud();save();};
+  panel(`<h2>길찾기 두루마리</h2><div id="pfBox"><p class="sub">찾을 주민의 이름을 정확히 적어 주세요. 길을 찾았을 때만 한 장 쓰여요. (남은 ${invCount('pathfind')}장)</p><div class="btns" style="display:flex;gap:6px"><input id="pfIn" maxlength="20" autocomplete="off" spellcheck="false" style="flex:1;min-width:0;background:#1c1826;color:#f0e6d4;border:1px solid #3a3446;border-radius:4px;padding:10px;font:16px inherit"><button class="primary" id="pfGo" type="button">찾기</button></div></div><div id="pfOut"></div><button data-act="close">닫기 (F)</button>`);
+  const i=$('pfIn');i.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();go();}});$('pfGo').onclick=go;setTimeout(()=>i.focus(),50);}
 function guidePath(now){const g=S.guide,p=S.p,m=S.map;if(!g||!m||!m.grid)return null;
   const key=m.id+'|'+S.floor+'|'+p.x+','+p.y;if(GUIDE.key===key&&now-GUIDE.t<600)return GUIDE.path;GUIDE.key=key;GUIDE.t=now;
   const tid=npcTown(g.name);let goal=null;
@@ -4715,6 +4734,7 @@ function sparkle(c1,c2,n=14){const p=S.p;for(let i=0;i<n;i++)part(p.x*TS+3+Math.
 function heal(v,nm){const p=S.p;if(p.hp>=p.maxhp){log('이미 체력이 가득하다.');return false;}if(p.job==='alchemist'&&v<9999)v=Math.round(v*1.4*(p.job2==='catalyst'?2:1));v=Math.min(p.maxhp-p.hp,v);p.hp+=v;sparkle('#8af0a0','#d0ffd8');fx(p.x,p.y,'+'+v,'#7fe08a');log(`${nm}을 마셨다. 체력 +${v}`);return true;}
 function addBuff(k,ms,nm,c1,c2){const p=S.p;p.buffs=p.buffs||{};p.buffs[k]=performance.now()+ms;sparkle(c1,c2,18);log(`${nm}을 마셨다.`);return true;}
 const USE={
+  pathfind:()=>{openPathfind();return false;},
   potions:()=>heal(30,'회복 물약'),
   hipotions:()=>heal(90,'상급 물약'),
   holies:()=>{const r=heal(9999,'정화의 성수');if(r)S.flashW=.25;return r;},
